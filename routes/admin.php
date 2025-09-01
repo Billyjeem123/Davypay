@@ -25,7 +25,6 @@ use Illuminate\Support\Facades\Route;
 
 Route::view('/admin/login', 'login')->name('admin.login');
 Route::post('/admin/login', [\App\Http\Controllers\v1\Admin\AdminAuthController::class, 'loginAdmin'])->name('login.submit');
-// Option 2: Use a meaningful prefix like 'admin'
 Route::middleware(['admin.auth'])->prefix('admin')->group(function () {
 
     /**
