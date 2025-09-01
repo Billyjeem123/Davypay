@@ -1,0 +1,430 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\VirtualCard;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class StrollWalletService
+{
+
+
+    protected $baseUrl;
+    protected $publicKey;
+
+    public function __construct()
+    {
+        $this->baseUrl = config('services.strowallet.base_url', 'https://strowallet.com/api');
+        $this->publicKey = config('services.strowallet.public_key');
+    }
+
+
+    public function createCardUser001(): array
+    {
+        DB::beginTransaction();
+        $user = Auth::user();
+
+        try {
+            $userData = $this->getVirtualUserPayload($user);
+            #  Call Strowallet endpoint
+            $response = $this->makeApiCall('/bitvcard/create-user/', $userData);
+
+#             $response = $this->getSampleStrowalletResponse();
+            if ($response['success'] && ($response['data']['success'] ?? false)) {
+                $apiResponseData = $response['data']['response'] ?? [];
+
+                $this->storeVirtualCard($userData, $apiResponseData);
+
+                DB::commit();
+
+                return [
+                    'success' => true,
+                    'message' => 'Strowallet card user created successfully',
+                    'data' => $apiResponseData
+                ];
+            }
+
+            DB::rollBack();
+            return [
+                'success' => false,
+                'message' => $response['data']['message'] ?? 'Failed to create card user',
+                'status_code' => $response['status_code'] ?? 400
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating Strowallet card user: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'status_code' => 500
+            ];
+        }
+    }
+
+
+    /**
+     * @throws \Exception
+     */
+
+
+
+    protected function storeVirtualCard(array $userData, array $apiResponse): VirtualCard
+    {
+        return VirtualCard::create([
+            'first_name' => $apiResponse['firstName'] ?? $userData['firstName'],
+            'last_name' => $apiResponse['lastName'] ?? $userData['lastName'],
+            'email' => $apiResponse['customerEmail'] ?? $userData['customerEmail'],
+            'phone' => $apiResponse['phoneNumber'] ?? $userData['phoneNumber'],
+            'country' => $apiResponse['country'] ?? $userData['country'],
+            'state' => $apiResponse['state'] ?? $userData['state'],
+            'city' => $apiResponse['city'] ?? $userData['city'],
+            'provider' => 'strowallet',
+            'type' => 'strowallet',
+            'address' => $apiResponse['line1'] ?? $userData['line1'],
+            'zip_code' => $apiResponse['zipCode'] ?? $userData['zipCode'],
+            'id_type' => $apiResponse['idType'] ?? $userData['idType'],
+            'id_number' => $apiResponse['idNumber'] ?? $userData['idNumber'],
+            'user_id' => Auth::id(),
+            'provider_user_id' => $apiResponse['customerId'] ?? null,
+            'card_status' => null,
+            'api_response' => $apiResponse,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+
+
+
+    /**
+     * Get sample Strowallet API response
+     *
+     * @return array
+     */
+    public function getSampleStrowalletResponse(): array
+    {
+        return [
+            "success" => true,
+            "data" => [
+                "success" => true,
+                "message" => "successfully registered user",
+                "response" => [
+                    "bvn" => "22035074465",
+                    "customerEmail" => "billyhadiattaofeeq@gmail.com",
+                    "firstName" => "ROBERT",
+                    "lastName" => "OGUNDIRAN",
+                    "phoneNumber" => "2348117283226",
+                    "city" => "Ikeja",
+                    "state" => "Lagos",
+                    "country" => "NIGERIA",
+                    "line1" => "Ikeja,Nigeria",
+                    "zipCode" => "100001",
+                    "houseNumber" => "12",
+                    "idNumber" => "22547614959",
+                    "idType" => "PASSPORT",
+                    "idImage" => "https://images.dojah.io/image_68ae310659d05e0047a59d83id_1756246347.jpg",
+                    "userPhoto" => "https://example.com/selfie.jpg",
+                    "customerId" => "643d44c1-e128-4663-954b-5c0b19ddf6df",
+                    "dateOfBirth" => "1996-07-28"
+                ]
+            ],
+            "status_code" => 200
+        ];
+    }
+
+    private function getVirtualUserPayload($user): array
+    {
+        $kyc = $user->kyc;
+        $document = $this->getUserDocumentDetails($user);
+
+        return [
+            'public_key'    => $this->publicKey,
+            'firstName'     => $user->first_name,
+            'lastName'      => $user->last_name,
+            'idNumber'      => $user->kyc->bvn ?? $user->kyc->nin,
+            'idType'        => "passport",
+            'customerEmail' => $user->email,
+            'phoneNumber'   => $this->validatePhoneNumber($user->phone),
+            'dateOfBirth'   => $kyc->dob ,
+            'idImage'       => $document['idImage'],
+            'userPhoto'     => $document['selfie_image'],
+            'line1'         => $kyc->address ?? 'Address Line',
+            'houseNumber'   => $kyc->house_number ?? '12',
+            'state'         => $kyc->state ?? 'Lagos',
+            'zipCode'       => $kyc->postal_code ?? '100001',
+            'city'          => $kyc->city ?? 'Ikeja',
+            'country'       => "NIGERIA"
+        ];
+    }
+
+
+
+
+
+    private function getUserDocumentDetails($user): array
+{
+    $type = $user->kyc->verification_type ?? null;
+    $documentId = $user->kyc->verification_value ?? null;
+    $documentType = $type === "NG-NIN-SLIP"
+        ? "NIN"
+        : "Passport";
+
+    return [
+        'idNumber' => $documentId,
+        'idType'   => $documentType,
+        'idImage'  => $user->kyc->id_image_url,
+        'selfie_image' => $user->kyc->selfie_image_url ?? 'https://example.com/selfie.jpg',
+
+    ];
+}
+
+
+
+    private function validatePhoneNumber(string $phone): string
+    {
+        #  Remove spaces or special characters just in case
+        $phone = preg_replace('/\D/', '', $phone);
+
+        #  If it starts with 0 and is 11 digits (Nigerian format e.g. 08117283227)
+        if (preg_match('/^0\d{10}$/', $phone)) {
+            return '234' . substr($phone, 1);
+        }
+
+        #  If it already starts with 234 and has the right length, return as is
+        if (preg_match('/^234\d{10}$/', $phone)) {
+            return $phone;
+        }
+
+        #  Otherwise return original (or throw exception if you want strict)
+        return $phone;
+    }
+
+
+    protected function makeApiCall(string $endpoint, array $data = [], string $method = 'POST'): array
+    {
+        try {
+            $http = Http::withHeaders([
+                'Content-Type' => 'application/json',
+            ]);
+
+            $response = match (strtoupper($method)) {
+                'POST' => $http->post($this->baseUrl . $endpoint, $data),
+                'PATCH' => $http->patch($this->baseUrl . $endpoint, $data),
+                'PUT' => $http->put($this->baseUrl . $endpoint, $data),
+                'GET' => $http->get($this->baseUrl . $endpoint),
+                default => throw new \Exception("Unsupported HTTP method: {$method}")
+            };
+
+
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                    'status_code' => $response->status()
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => $response->json()['message'] ?? 'API request failed',
+                'data' => $response->json()
+            ];
+        } catch (\Exception $e) {
+            Log::error('Strowallet API call failed: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => 'API connection failed: ' . $e->getMessage(),
+                'status_code' => 500
+            ];
+        }
+    }
+
+
+
+    public function getVirtualCardCustomer(): array
+    {
+        $user = auth()->user();
+        $kycCard = $user->virtual_cards->first();
+
+        if (!$kycCard) {
+            return [
+                'success' => false,
+                'message' => 'No Strowallet card found for user',
+                'data' => [],
+            ];
+        }
+        $queryParams = [
+            'customerId'    => $kycCard->provider_user_id,
+            'customerEmail' => $user->email,
+            'public_key'    => $this->publicKey,
+        ];
+        $endpoint = '/bitvcard/getcardholder/';
+        $response = $this->makeApiCall($endpoint . '?' . http_build_query($queryParams), [], 'GET');
+
+        if ($response['success'] && isset($response['data']['data'])) {
+            return [
+                'success' => true,
+                'message' => 'Customer details fetched successfully.',
+                'data' => $response['data']['data'],
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => $response['message'] ?? 'Failed to fetch customer details',
+            'data' => [],
+        ];
+    }
+
+
+
+    public function createCardUser(): array
+    {
+        DB::beginTransaction();
+        $user = Auth::user();
+
+        try {
+            $userData = $this->getVirtualUserPayload($user);
+            #  Call Strowallet endpoint
+             $response = $this->getSampleStrowalletResponse();
+            if ($response['success'] && ($response['data']['success'] ?? false)) {
+                $apiResponseData = $response['data']['response'] ?? [];
+                $this->storeVirtualCard($userData, $apiResponseData);
+
+
+                $this->createVirtualCard();
+
+                DB::commit();
+
+                return [
+                    'success' => true,
+                    'message' => 'Strowallet card user created successfully',
+                    'data' => $apiResponseData
+                ];
+            }
+
+            DB::rollBack();
+            return [
+                'success' => false,
+                'message' => $response['data']['message'] ?? 'Failed to create card user',
+                'status_code' => $response['status_code'] ?? 400
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating Strowallet card user: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'status_code' => 500
+            ];
+        }
+    }
+
+
+    public function createVirtualCard(array $cardData=null): array
+    {
+        $user = auth()->user();
+
+        #  Get the user's Strowallet customer ID or email (make sure you have this info)
+        $kycCard = $user->virtual_cards->first();
+
+        if (!$kycCard) {
+            return [
+                'success' => false,
+                'message' => 'No Strowallet card found for user',
+                'data' => [],
+            ];
+        }
+
+        #  Prepare request payload for create-card API
+        $payload = [
+            'name_on_card'   => $cardData['name_on_card'] ?? $user->first_name . ' ' . $user->last_name,
+            'card_type'      => $cardData['card_type'] ?? 'visa',
+            'public_key'     => $this->publicKey,
+            'amount'         => 3,
+            'customerEmail'  => $user->email,
+            'mode' => 'sandbox'
+        ];
+
+        #  Call the API endpoint
+        $endpoint = '/bitvcard/create-card/';
+
+//        $response = $this->makeApiCall($endpoint, $payload, 'POST');
+        $response = $this->getMockCardCreationResponse();
+
+        if ($response['success']) {
+            return [
+                'success' => true,
+                'message' => 'Virtual card created successfully.',
+//                'data' => $response['data'] ?? [],
+                  'data' => $response,
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => $response['errors']['message'] ?? 'An error occurred',
+            'data' => $response['data']['errors']
+        ];
+
+
+    }
+
+
+
+    /**
+     * Format the virtual card creation response.
+     *
+     * @param array $response
+     * @return array
+     */
+    private function formatVirtualCardResponse(array $response): array
+    {
+        $card = $response['response'] ?? [];
+
+        return [
+            'name_on_card'       => $card['name_on_card'] ?? null,
+            'card_id'            => $card['card_id'] ?? null,
+            'card_created_date'  => $card['card_created_date'] ?? null,
+            'card_type'          => $card['card_type'] ?? null,
+            'card_brand'         => $card['card_brand'] ?? null,
+            'card_user_id'       => $card['card_user_id'] ?? null,
+            'reference'          => $card['reference'] ?? null,
+            'card_status'        => $card['card_status'] ?? null,
+            'customer_id'        => $card['customer_id'] ?? null,
+        ];
+    }
+
+    /**
+     * Mock or sample response for virtual card creation.
+     *
+     * @return array
+     */
+    private function getMockCardCreationResponse(): array
+    {
+        return [
+            'success' => true,
+            'message' => 'Card creation in progress',
+            'response' => [
+                'name_on_card'       => 'ROBERT OGUNDIRAN',
+                'card_id'            => 8137205496,
+                'card_created_date'  => '2025-08-28',
+                'card_type'          => 'virtual',
+                'card_brand'         => 'visa',
+                'card_user_id'       => '12d4-9290113c29e2',
+                'reference'          => 45654,
+                'card_status'        => 'pending',
+                'customer_id'        => '4070fc3e-1d76-46',
+            ],
+        ];
+    }
+
+
+}

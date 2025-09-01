@@ -1,0 +1,623 @@
+@extends('dashboard.layout.sms')
+
+@section('content')
+
+    <div class="wrapper">
+        <div class="content-page sms-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <!-- Header -->
+                    <div class="row mb-2">
+                        <div class="col-md-6">
+                            <div class="page-title-box">
+                                <h1 class="page-title text-dark">Transaction Settings</h1>
+                                <p class="text-muted">Configure payment gateways, fees, and transaction rules</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 py-2 text-end">
+                            <a href="" class="btn btn-sm btn-info mb-2">
+                                <i class="uil-wallet"></i> Back to Wallet
+                            </a>
+                            <a href="{{ route('admin.home') }}" class="btn btn-sm btn-secondary mb-2">
+                                <i class="uil-dashboard"></i> Dashboard
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Payment Gateway Status Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="card-title text-primary mb-1">Paystack Gateway</h5>
+                                            <p class="text-muted mb-0">Online payments & transfers</p>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="paystackStatus" checked>
+                                            <label class="form-check-label" for="paystackStatus">
+                                                <span class="badge bg-success">Active</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="card-title text-info mb-1">Nomba Gateway</h5>
+                                            <p class="text-muted mb-0">POS & mobile payments</p>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="nombaStatus">
+                                            <label class="form-check-label" for="nombaStatus">
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Fee Configuration -->
+                    <div class="row">
+                        <!-- Transfer Settings -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-header bg-light border-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h4 class="card-title mb-1">
+                                                <i class="uil-exchange text-primary me-2"></i>Transfer Fees
+                                            </h4>
+                                            <p class="text-muted mb-0">Configure fees for money transfers</p>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="addTransferRange()">
+                                            <i class="uil-plus"></i> Add Range
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <form id="transferFeeForm">
+                                        @csrf
+                                        <div class="alert alert-info border-0 bg-light-info">
+                                            <i class="uil-info-circle me-2"></i>
+                                            <strong>Note:</strong> Fee takes effect when transaction amount is within the specified range.
+                                        </div>
+
+                                        <div id="transferRanges">
+                                            <!-- Default Range -->
+                                            <div class="fee-range-item border rounded p-3 mb-3 bg-light">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6 class="mb-0">Range 1</h6>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRange(this)">
+                                                        <i class="uil-times"></i>
+                                                    </button>
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Minimum Amount (₦)</label>
+                                                        <input type="number" class="form-control" name="transfer_min[]" placeholder="0" min="0" step="0.01">
+                                                    </div>
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Maximum Amount (₦)</label>
+                                                        <input type="number" class="form-control" name="transfer_max[]" placeholder="10000" min="0" step="0.01">
+                                                    </div>
+                                                </div>
+
+                                                <div class="row">
+
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">Percentage Fee (%)</label>
+                                                        <input type="number" class="form-control" name="transfer_percent[]" placeholder="1.5" min="0" max="100" step="0.01">
+                                                    </div>
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-md-12">
+                                                        <label class="form-label">Fee Calculation</label>
+                                                        <select class="form-select" name="transfer_calculation[]">
+                                                            <option value="fixed">Fixed Fee Only</option>
+                                                            <option value="percentage">Percentage Only</option>
+                                                            <option value="both">Fixed + Percentage</option>
+                                                            <option value="higher">Higher of Both</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="uil-save"></i> Save Transfer Settings
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deposit Settings -->
+                        <div class="col-lg-6 mb-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-header bg-light border-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h4 class="card-title mb-1">
+                                                <i class="uil-credit-card text-success me-2"></i>Deposit Fees
+                                            </h4>
+                                            <p class="text-muted mb-0">Configure fees for wallet deposits</p>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="addDepositRange()">
+                                            <i class="uil-plus"></i> Add Range
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <form id="depositFeeForm">
+                                        @csrf
+                                        <div class="alert alert-warning border-0 bg-light-warning">
+                                            <i class="uil-info-circle me-2"></i>
+                                            <strong>Note:</strong> Fee and addon takes effect when transaction amount is within range. Fee is calculated in percentage.
+                                        </div>
+
+                                        <div id="depositRanges">
+                                            <!-- Default Range -->
+                                            <div class="fee-range-item border rounded p-3 mb-3 bg-light">
+                                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6 class="mb-0">Range 1</h6>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRange(this)">
+                                                        <i class="uil-times"></i>
+                                                    </button>
+                                                </div>
+
+                                                <div class="row">
+                                                    <div class="col-md-12 mb-3">
+                                                        <label class="form-label">Amount Range (₦)</label>
+                                                        <div class="input-group">
+                                                            <input type="number" class="form-control" name="deposit_min[]" placeholder="Min" min="0" step="0.01">
+                                                            <span class="input-group-text">to</span>
+                                                            <input type="number" class="form-control" name="deposit_max[]" placeholder="Max" min="0" step="0.01">
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="row">
+
+                                                    <div class="col-md-12 mb-3">
+                                                        <label class="form-label">Platform Fee (%)</label>
+                                                        <input type="number" class="form-control" name="deposit_platform_fee[]" placeholder="0.5" min="0" max="100" step="0.01">
+                                                        <div class="form-text">Additional platform charge</div>
+                                                    </div>
+                                                </div>
+
+
+                                            </div>
+                                        </div>
+
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="uil-save"></i> Save Deposit Settings
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Gateway Configuration -->
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-light border-0">
+                                    <h4 class="card-title mb-1">
+                                        <i class="uil-setting text-warning me-2"></i>Gateway Configuration
+                                    </h4>
+                                    <p class="text-muted mb-0">Configure payment gateway settings and API keys</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Paystack Config -->
+                                        <div class="col-lg-6 mb-4">
+                                            <div class="border rounded p-4">
+                                                <h5 class="text-primary mb-3">
+                                                    <i class="uil-credit-card me-2"></i>Paystack Configuration
+                                                </h5>
+                                                <form id="paystackConfigForm">
+                                                    @csrf
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Public Key</label>
+                                                        <input type="text" class="form-control" name="paystack_public_key"
+                                                               placeholder="pk_test_..." value="{{ config('paystack.public_key') }}">
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Secret Key</label>
+                                                        <div class="input-group">
+                                                            <input type="password" class="form-control" name="paystack_secret_key"
+                                                                   placeholder="sk_test_..." value="{{ config('paystack.secret_key') }}">
+                                                            <button type="button" class="btn btn-outline-secondary" onclick="togglePassword(this)">
+                                                                <i class="uil-eye"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Environment</label>
+                                                        <select class="form-select" name="paystack_environment">
+                                                            <option value="test">Test Mode</option>
+                                                            <option value="live">Live Mode</option>
+                                                        </select>
+                                                    </div>
+                                                    <button type="submit" class="btn btn-primary">
+                                                        <i class="uil-save"></i> Update Paystack
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+
+                                        <!-- Nomba Config -->
+                                        <div class="col-lg-6 mb-4">
+                                            <div class="border rounded p-4">
+                                                <h5 class="text-info mb-3">
+                                                    <i class="uil-mobile-android me-2"></i>Nomba Configuration
+                                                </h5>
+                                                <form id="nombaConfigForm">
+                                                    @csrf
+                                                    <div class="mb-3">
+                                                        <label class="form-label">API Key</label>
+                                                        <input type="text" class="form-control" name="nomba_api_key"
+                                                               placeholder="nmb_..." value="{{ config('nomba.api_key') }}">
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Secret Key</label>
+                                                        <div class="input-group">
+                                                            <input type="password" class="form-control" name="nomba_secret_key"
+                                                                   placeholder="sk_..." value="{{ config('nomba.secret_key') }}">
+                                                            <button type="button" class="btn btn-outline-secondary" onclick="togglePassword(this)">
+                                                                <i class="uil-eye"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Environment</label>
+                                                        <select class="form-select" name="nomba_environment">
+                                                            <option value="sandbox">Sandbox</option>
+                                                            <option value="production">Production</option>
+                                                        </select>
+                                                    </div>
+                                                    <button type="submit" class="btn btn-info">
+                                                        <i class="uil-save"></i> Update Nomba
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fee Calculator Preview -->
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-light border-0">
+                                    <h4 class="card-title mb-1">
+                                        <i class="uil-calculator text-info me-2"></i>Fee Calculator Preview
+                                    </h4>
+                                    <p class="text-muted mb-0">Test how fees will be calculated with current settings</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Transaction Type</label>
+                                                <select class="form-select" id="calcType">
+                                                    <option value="transfer">Transfer</option>
+                                                    <option value="deposit">Deposit</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Amount (₦)</label>
+                                                <input type="number" class="form-control" id="calcAmount"
+                                                       placeholder="Enter amount" min="0" step="0.01">
+                                            </div>
+                                            <button type="button" class="btn btn-info" onclick="calculateFee()">
+                                                <i class="uil-calculator"></i> Calculate Fee
+                                            </button>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div id="calcResult" class="border rounded p-3 bg-light" style="display: none;">
+                                                <h6 class="text-primary">Fee Calculation Result</h6>
+                                                <div class="fee-breakdown"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Section -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize forms
+            initializeForms();
+
+            // Gateway status toggles
+            document.getElementById('paystackStatus').addEventListener('change', function() {
+                updateGatewayStatus('paystack', this.checked);
+            });
+
+            document.getElementById('nombaStatus').addEventListener('change', function() {
+                updateGatewayStatus('nomba', this.checked);
+            });
+        });
+
+        function addTransferRange() {
+            const container = document.getElementById('transferRanges');
+            const rangeCount = container.children.length + 1;
+
+            const rangeHtml = `
+        <div class="fee-range-item border rounded p-3 mb-3 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Range ${rangeCount}</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRange(this)">
+                    <i class="uil-times"></i>
+                </button>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Minimum Amount (₦)</label>
+                    <input type="number" class="form-control" name="transfer_min[]" placeholder="0" min="0" step="0.01">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Maximum Amount (₦)</label>
+                    <input type="number" class="form-control" name="transfer_max[]" placeholder="10000" min="0" step="0.01">
+                </div>
+            </div>
+
+            <div class="row">
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Percentage Fee (%)</label>
+                    <input type="number" class="form-control" name="transfer_percent[]" placeholder="1.5" min="0" max="100" step="0.01">
+                </div>
+            </div>
+
+
+        </div>
+    `;
+
+            container.insertAdjacentHTML('beforeend', rangeHtml);
+        }
+
+        function addDepositRange() {
+            const container = document.getElementById('depositRanges');
+            const rangeCount = container.children.length + 1;
+
+            const rangeHtml = `
+        <div class="fee-range-item border rounded p-3 mb-3 bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Range ${rangeCount}</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRange(this)">
+                    <i class="uil-times"></i>
+                </button>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Amount Range (₦)</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" name="deposit_min[]" placeholder="Min" min="0" step="0.01">
+                        <span class="input-group-text">to</span>
+                        <input type="number" class="form-control" name="deposit_max[]" placeholder="Max" min="0" step="0.01">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Gateway Fee (%)</label>
+                    <input type="number" class="form-control" name="deposit_gateway_fee[]" placeholder="1.5" min="0" max="100" step="0.01">
+                    <div class="form-text">Paystack/Nomba charges</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Platform Fee (%)</label>
+                    <input type="number" class="form-control" name="deposit_platform_fee[]" placeholder="0.5" min="0" max="100" step="0.01">
+                    <div class="form-text">Additional platform charge</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Fee Bearer</label>
+                    <select class="form-select" name="deposit_bearer[]">
+                        <option value="customer">Customer Pays Fee</option>
+                        <option value="merchant">Merchant Absorbs Fee</option>
+                        <option value="split">Split Fee (50/50)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+
+            container.insertAdjacentHTML('beforeend', rangeHtml);
+        }
+
+        function removeRange(button) {
+            const rangeItem = button.closest('.fee-range-item');
+            rangeItem.remove();
+
+            // Renumber remaining ranges
+            const container = rangeItem.closest('#transferRanges') || rangeItem.closest('#depositRanges');
+            const ranges = container.querySelectorAll('.fee-range-item');
+            ranges.forEach((range, index) => {
+                range.querySelector('h6').textContent = `Range ${index + 1}`;
+            });
+        }
+
+        function togglePassword(button) {
+            const input = button.previousElementSibling;
+            const icon = button.querySelector('i');
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'uil-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'uil-eye';
+            }
+        }
+
+        function updateGatewayStatus(gateway, status) {
+            // Update badge
+            const badge = document.querySelector(`#${gateway}Status`).nextElementSibling.querySelector('.badge');
+            if (status) {
+                badge.className = 'badge bg-success';
+                badge.textContent = 'Active';
+            } else {
+                badge.className = 'badge bg-secondary';
+                badge.textContent = 'Inactive';
+            }
+
+            // You can add AJAX call here to update the backend
+            console.log(`${gateway} gateway ${status ? 'activated' : 'deactivated'}`);
+        }
+
+        function calculateFee() {
+            const type = document.getElementById('calcType').value;
+            const amount = parseFloat(document.getElementById('calcAmount').value);
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+
+            // This is a demo calculation - you'll need to implement actual fee logic
+            let fee = 0;
+            let breakdown = '';
+
+            if (type === 'transfer') {
+                if (amount <= 5000) {
+                    fee = 50; // Fixed fee
+                    breakdown = `Fixed fee: ₦${fee}`;
+                } else if (amount <= 50000) {
+                    fee = amount * 0.015; // 1.5%
+                    breakdown = `Percentage fee (1.5%): ₦${fee.toFixed(2)}`;
+                } else {
+                    fee = Math.max(100, amount * 0.02); // 2% or ₦100 minimum
+                    breakdown = `Higher of ₦100 or 2%: ₦${fee.toFixed(2)}`;
+                }
+            } else {
+                fee = amount * 0.015; // 1.5% for deposits
+                breakdown = `Gateway fee (1.5%): ₦${fee.toFixed(2)}`;
+            }
+
+            const resultDiv = document.getElementById('calcResult');
+            const breakdownDiv = resultDiv.querySelector('.fee-breakdown');
+
+            breakdownDiv.innerHTML = `
+        <p><strong>Amount:</strong> ₦${amount.toLocaleString()}</p>
+        <p><strong>Fee:</strong> ₦${fee.toFixed(2)}</p>
+        <p><strong>Total:</strong> ₦${(amount + fee).toFixed(2)}</p>
+        <hr>
+        <small class="text-muted">${breakdown}</small>
+    `;
+
+            resultDiv.style.display = 'block';
+        }
+
+        function initializeForms() {
+            // Initialize form submissions
+            document.getElementById('transferFeeForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Handle transfer fee form submission
+                console.log('Transfer fee settings saved');
+                alert('Transfer fee settings saved successfully!');
+            });
+
+            document.getElementById('depositFeeForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Handle deposit fee form submission
+                console.log('Deposit fee settings saved');
+                alert('Deposit fee settings saved successfully!');
+            });
+
+            document.getElementById('paystackConfigForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Handle Paystack config submission
+                console.log('Paystack configuration updated');
+                alert('Paystack configuration updated successfully!');
+            });
+
+            document.getElementById('nombaConfigForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                // Handle Nomba config submission
+                console.log('Nomba configuration updated');
+                alert('Nomba configuration updated successfully!');
+            });
+        }
+    </script>
+
+    <style>
+        .sms-page {
+        }
+
+        .card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+        }
+
+        .card-header {
+            border-radius: 12px 12px 0 0 !important;
+        }
+
+        .fee-range-item {
+            transition: all 0.3s ease;
+            background: #f8f9fa !important;
+        }
+
+        .fee-range-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-control, .form-select {
+            border-radius: 8px;
+        }
+
+        .btn {
+            border-radius: 8px;
+        }
+
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+
+        .bg-light-info {
+            color: #1976d2;
+        }
+
+        .bg-light-warning {
+            color: #f57c00;
+        }
+
+
+    </style>
+
+@endsection

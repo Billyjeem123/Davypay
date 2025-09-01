@@ -1,0 +1,956 @@
+<?php
+
+namespace App\Http\Controllers\v1\Webhook;
+
+use App\Events\PushNotificationEvent;
+use App\Helpers\PaymentLogger;
+use App\Helpers\Utility;
+use App\Http\Controllers\Controller;
+use App\Models\NombaTransaction;
+use App\Models\TransactionLog;
+use App\Models\User;
+use App\Notifications\NombaFundedWallet;
+use App\Notifications\NombaTransferSucessfull;
+use App\Notifications\VirtualAccountDepositNotification;
+use App\Services\ActivityTracker;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+
+
+class NombaWebhookController extends Controller
+{
+    private const SUPPORTED_EVENTS = [
+        'payment_success',
+        'payout_success'
+    ];
+
+    private const STATUS_MAP = [
+        'payment_success' => 'success',
+        'payout_success' => 'success',
+        'transfer_failed' => 'failed',
+        'transfer_reversed' => 'reversed',
+    ];
+
+    public function __construct(private ActivityTracker $tracker)
+    {
+    }
+
+    /**
+     * Handle Nomba webhook
+     */
+    public function nombaWebhook(Request $request): Response
+    {
+        try {
+            PaymentLogger::log("Nomba webhook received", $request->all());
+
+           # Validate payload structure
+            $validatedData = $this->validateWebhookPayload($request);
+            if (!$validatedData) {
+                return response('Invalid payload structure', 400);
+            }
+
+           # Check if event is supported
+            if (!in_array($validatedData['event_type'], self::SUPPORTED_EVENTS)) {
+                PaymentLogger::log('Unsupported webhook event', ['event' => $validatedData['event_type']]);
+                return response('Event not supported', 200);
+            }
+
+           # Process webhook with database transaction
+            $result = DB::transaction(fn() => $this->processWebhook($validatedData));
+
+            return response(
+                $result['message'],
+                $result['success'] ? 200 : ($result['status_code'] ?? 500)
+            );
+
+        } catch (\Exception $e) {
+            PaymentLogger::error('Webhook processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response('Internal server error', 200);
+        }
+    }
+
+    /**
+     * Get transaction reference based on event type
+     */
+    private function getTransactionReference(array $data): ?string
+    {
+        return match ($data['event_type']) {
+            'payment_success' => $data['data']['order']['orderReference'] ?? null,
+            'payout_success' => $data['data']['transaction']['merchantTxRef'] ?? null,
+            default => $data['data']['order']['orderReference']
+                ?? $data['data']['transaction']['merchantTxRef']
+                ?? null
+        };
+    }
+
+    /**
+     * Get order ID based on event type
+     */
+    private function getOrderId(array $data): ?string
+    {
+        return match ($data['event_type']) {
+            'payment_success' => $data['data']['order']['orderId'] ?? null,
+            'payout_success' => $data['data']['transaction']['transactionId'] ?? null,
+            default => $data['data']['order']['orderId']
+                ?? $data['data']['transaction']['transactionId']
+                ?? null
+        };
+    }
+
+    /**
+     * Get transaction amount from payload
+     */
+    private function getTransactionAmount(array $data): float
+    {
+        return $data['data']['order']['amount']
+            ?? $data['data']['transaction']['transactionAmount']
+            ?? 0;
+    }
+
+    /**
+     * Get currency from payload
+     */
+    private function getCurrency(array $data): string
+    {
+        return $data['data']['order']['currency']
+            ?? $data['data']['order']['cardCurrency']
+            ?? 'NGN';
+    }
+
+    /**
+     * Get payment method from payload
+     */
+    private function getPaymentMethod(array $data): ?string
+    {
+        if (isset($data['data']['order']['paymentMethod'])) {
+            return $data['data']['order']['paymentMethod'];
+        }
+
+        return $data['event_type'] === 'payout_success' ? 'bank_transfer' : null;
+    }
+
+    /**
+     * Validate webhook payload structure
+     */
+    private function validateWebhookPayload(Request $request): ?array
+    {
+        $baseRules = [
+            'event_type' => 'required|string',
+            'requestId' => 'required|string',
+            'data' => 'required|array',
+            'data.transaction.transactionId' => 'required|string',
+            'data.transaction.fee' => 'nullable|numeric|min:0',
+            'data.transaction.time' => 'nullable|string',
+            'data.merchant.walletId' => 'nullable|string',
+            'data.merchant.userId' => 'nullable|string',
+        ];
+
+        $eventType = $request->input('event_type');
+
+       # Add event-specific validation rules
+        if ($eventType === 'payment_success') {
+            $baseRules = array_merge($baseRules, [
+                'data.order.orderId' => 'nullable|string',
+                'data.order.orderReference' => 'nullable|string',
+                'data.order.amount' => 'nullable|numeric|min:0',
+                'data.order.customerEmail' => 'nullable|email',
+            ]);
+        } elseif ($eventType === 'payout_success') {
+            $baseRules = array_merge($baseRules, [
+                'data.transaction.merchantTxRef' => 'required|string',
+                'data.transaction.transactionAmount' => 'required|numeric|min:0',
+                'data.customer.accountNumber' => 'required|string',
+                'data.customer.bankCode' => 'required|string',
+            ]);
+        }
+
+        $validator = Validator::make($request->all(), $baseRules);
+
+        if ($validator->fails()) {
+            PaymentLogger::log('Invalid webhook payload', [
+                'errors' => $validator->errors()->toArray(),
+                'event_type' => $eventType
+            ]);
+            return null;
+        }
+
+        return $request->all();
+    }
+
+    /**
+     * Process webhook based on event type
+     */
+    private function processWebhook(array $data): array
+    {
+        $reference = $this->getTransactionReference($data);
+        $event = $data['event_type'];
+
+        if (!$reference) {
+            PaymentLogger::log('No reference found in webhook payload', ['event' => $event]);
+            return ['success' => false, 'message' => 'No transaction reference found', 'status_code' => 400];
+        }
+
+       # Check for idempotency
+        if ($this->isAlreadyProcessed($reference)) {
+            PaymentLogger::log('Webhook already processed', ['reference' => $reference, 'event' => $event]);
+            return ['success' => true, 'message' => 'Already processed'];
+        }
+
+       # Try to find existing transaction
+        $transaction = $this->findExistingTransaction($reference);
+
+       # Handle virtual account funding if no transaction found
+        if (!$transaction && $this->isVirtualAccountFunding($data)) {
+            return $this->handleVirtualAccountFunding($data);
+        }
+
+       # Process existing transaction
+        if ($transaction) {
+            return $this->processExistingTransaction($transaction, $data);
+        }
+
+        PaymentLogger::log('No matching transaction found', ['reference' => $reference, 'event' => $event]);
+        return ['success' => false, 'message' => 'Transaction not found', 'status_code' => 404];
+    }
+
+    /**
+     * Check if webhook has already been processed
+     */
+    private function isAlreadyProcessed(string $reference): bool
+    {
+        return NombaTransaction::where('reference', $reference)
+            ->where('status', 'success')
+            ->exists();
+    }
+
+    /**
+     * Find existing transaction by reference
+     */
+    private function findExistingTransaction(string $reference): ?TransactionLog
+    {
+        return TransactionLog::where('transaction_reference', $reference)
+            ->where('provider', 'nomba')
+            ->first();
+    }
+
+    /**
+     * Check if this is virtual account funding
+     */
+    private function isVirtualAccountFunding(array $data): bool
+    {
+        return isset($data['data']['order']['paymentMethod'])
+            && $data['data']['order']['paymentMethod'] === 'virtual_account'
+            && $data['event_type'] === 'payment_success';
+    }
+
+    /**
+     * Handle virtual account funding
+     */
+    private function handleVirtualAccountFunding(array $data): array
+    {
+        $customerEmail = $data['data']['order']['customerEmail'];
+        $amount = $this->getTransactionAmount($data);
+        $reference = $this->getTransactionReference($data);
+
+        $user = User::where('email', $customerEmail)->first();
+        if (!$user || !$user->wallet) {
+            PaymentLogger::log('User or wallet not found for virtual account funding', [
+                'customer_email' => $customerEmail,
+                'reference' => $reference
+            ]);
+            return ['success' => false, 'message' => 'User or wallet not found', 'status_code' => 404];
+        }
+
+        $wallet = $user->wallet;
+        $oldBalance = $wallet->amount;
+
+       # Create transaction record
+        $transaction = TransactionLog::create([
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'amount' => $amount,
+            'amount_before' => $oldBalance,
+            'amount_after' => $oldBalance + $amount,
+            'currency' => $this->getCurrency($data),
+            'description' => 'Received from ' . ($data['data']['customer']['billerId'] ?? 'External source'),
+            'status' => 'successful',
+            'type' => 'credit',
+            'category' => 'external_bank_deposit',
+            'service_type' => 'external_bank_deposit',
+            'purpose' => 'wallet_funding',
+            'payable_type' => 'App\\Models\\Wallet',
+            'payable_id' => $wallet->id,
+            'provider' => 'nomba',
+            'transaction_reference' => $reference,
+            'channel' => $this->getPaymentMethod($data),
+            'paid_at' => now(),
+            'provider_response' => json_encode($data)
+        ]);
+
+       # Create NombaTransaction record
+        $this->createNombaTransaction($transaction, $data);
+
+       # Update wallet balance
+        $wallet->increment('amount', $amount);
+
+        PaymentLogger::log('Virtual account funded successfully', [
+            'transaction_id' => $transaction->id,
+            'user_id' => $user->id,
+            'amount' => $amount
+        ]);
+
+       # Send notifications
+        $this->sendNotifications($user, $transaction, $data, 'virtual_account_funding_completed');
+
+        $sender = $data['data']['customer']['billerId'] ?? 'Someone';
+        $this->sendPushNotification(
+            $user,
+            'Transaction Notification',
+            "{$sender} just sent you ₦" . number_format($amount, 2)
+        );
+
+        return ['success' => true, 'message' => 'Virtual account funded successfully'];
+    }
+
+    /**
+     * Process existing transaction based on webhook event
+     */
+    private function processExistingTransaction(TransactionLog $transaction, array $data): array
+    {
+        $nombaTransaction = $this->findOrCreateNombaTransaction($transaction, $data);
+
+        return match ($data['event_type']) {
+            'payment_success' => $this->handlePaymentSuccess($transaction, $nombaTransaction, $data),
+            'payout_success' => $this->handlePayoutSuccess($transaction, $nombaTransaction, $data),
+            default => ['success' => false, 'message' => 'Unhandled event', 'status_code' => 400]
+        };
+    }
+
+    /**
+     * Find or create NombaTransaction record
+     */
+    private function findOrCreateNombaTransaction(TransactionLog $transaction, array $data): NombaTransaction
+    {
+        $reference = $this->getTransactionReference($data);
+        $transactionId = $data['data']['transaction']['transactionId'];
+
+        $nombaTransaction = NombaTransaction::where('reference', $reference)
+            ->orWhere('transaction_id', $transactionId)
+            ->first();
+
+        if (!$nombaTransaction) {
+            $nombaTransaction = $this->createNombaTransaction($transaction, $data);
+        } else {
+            $nombaTransaction->update([
+                'status' => self::STATUS_MAP[$data['event_type']] ?? 'pending',
+                'event_type' => $data['event_type'],
+                'metadata' => json_encode($data),
+            ]);
+        }
+
+        return $nombaTransaction;
+    }
+
+    /**
+     * Create NombaTransaction record
+     */
+    private function createNombaTransaction(TransactionLog $transaction, array $data): NombaTransaction
+    {
+        return NombaTransaction::create([
+            'transaction_id' => $data['data']['transaction']['transactionId'],
+            'event_type' => $data['event_type'],
+            'request_id' => $data['requestId'],
+            'reference' => $this->getTransactionReference($data),
+            'order_id' => $this->getOrderId($data),
+            'merchant_tx_ref' => $data['data']['transaction']['merchantTxRef'] ?? null,
+            'amount' => $this->getTransactionAmount($data),
+            'fee' => $data['data']['transaction']['fee'] ?? 0,
+            'currency' => $this->getCurrency($data),
+            'payment_method' => $this->getPaymentMethod($data),
+            'channel' => $data['data']['transaction']['originatingFrom'] ?? 'web',
+            'transaction_type' => $data['data']['transaction']['type'],
+            'status' => self::STATUS_MAP[$data['event_type']] ?? 'pending',
+            'paid_at' => isset($data['data']['transaction']['time'])
+                ? Carbon::parse($data['data']['transaction']['time']) : now(),
+            'card_type' => $data['data']['tokenizedCardData']['cardType'] ?? null,
+            'card_last4' => $data['data']['order']['cardLast4Digits']
+                ?? substr($data['data']['tokenizedCardData']['cardPan'] ?? '', -4)
+                    ?? null,
+            'card_issuer' => $data['data']['transaction']['cardIssuer'] ?? null,
+            'tokenized_card_data' => isset($data['data']['tokenizedCardData'])
+                ? json_encode($data['data']['tokenizedCardData']) : null,
+            'wallet_id' => $data['data']['merchant']['walletId'] ?? null,
+            'merchant_user_id' => $data['data']['merchant']['userId'] ?? null,
+            'wallet_balance' => $data['data']['merchant']['walletBalance'] ?? null,
+            'customer_email' => $data['data']['order']['customerEmail'] ?? null,
+            'customer_id' => $data['data']['order']['customerId']
+                ?? $data['data']['customer']['accountNumber'] ?? null,
+            'customer_data' => isset($data['data']['customer'])
+                ? json_encode($data['data']['customer']) : null,
+            'raw_payload' => json_encode($data),
+            'user_id' => $transaction->user_id,
+        ]);
+    }
+
+    /**
+     * Handle successful payment
+     */
+    private function handlePaymentSuccess(TransactionLog $transaction, NombaTransaction $nombaTransaction, array $data): array
+    {
+        $amount = $this->getTransactionAmount($data);
+
+       # Update transaction status
+        $transaction->update([
+            'status' => 'successful',
+            'paid_at' => isset($data['data']['transaction']['time'])
+                ? Carbon::parse($data['data']['transaction']['time']) : now(),
+            'provider_response' => json_encode($data)
+        ]);
+
+       # Update nomba transaction
+        $nombaTransaction->update(['status' => 'success']);
+
+       # Credit wallet if it's a credit transaction
+        if ($transaction->wallet && $transaction->type === 'credit') {
+            $oldBalance = $transaction->wallet->amount;
+            $transaction->wallet->increment('amount', $amount);
+
+            $transaction->update([
+                'amount_before' => $oldBalance,
+                'amount_after' => $transaction->wallet->fresh()->amount
+            ]);
+
+            PaymentLogger::log('Wallet credited from payment success', [
+                'wallet_id' => $transaction->wallet->id,
+                'amount' => $amount,
+                'old_balance' => $oldBalance,
+                'new_balance' => $transaction->wallet->fresh()->amount
+            ]);
+        }
+
+       # Send notifications
+        $this->sendNotifications($transaction->user, $transaction, $data, 'wallet_funding_completed');
+        $this->sendPushNotification(
+            $transaction->user,
+            'Transaction Notification',
+            "Your account has been credited with ₦" . number_format($amount, 2)
+        );
+
+        PaymentLogger::log('Payment success processed', [
+            'transaction_id' => $transaction->id,
+            'amount' => $amount
+        ]);
+
+        return ['success' => true, 'message' => 'Payment success processed'];
+    }
+
+    /**
+     * Handle successful payout
+     */
+    private function handlePayoutSuccess(TransactionLog $transaction, NombaTransaction $nombaTransaction, array $data): array
+    {
+       # Update transaction and nomba transaction status
+        $transaction->update([
+            'status' => 'successful',
+            'paid_at' => isset($data['data']['transaction']['time'])
+                ? Carbon::parse($data['data']['transaction']['time']) : now(),
+            'provider_response' => json_encode($data)
+        ]);
+
+        $nombaTransaction->update(['status' => 'success']);
+
+       # Send notifications
+        $this->sendNotifications($transaction->user, $transaction, $data, 'external_bank_transfer_completed');
+
+        $amount = number_format($transaction->amount, 2);
+        $recipient = $data['data']['customer']['recipientName'] ?? 'recipient';
+        $this->sendPushNotification(
+            $transaction->user,
+            'Transaction Notification',
+            "₦{$amount} successfully sent to {$recipient}"
+        );
+
+        PaymentLogger::log('Payout success processed', [
+            'transaction_id' => $transaction->id,
+            'amount' => $transaction->amount
+        ]);
+
+        return ['success' => true, 'message' => 'Payout success processed'];
+    }
+
+    /**
+     * Record refund transaction
+     */
+    private function recordRefundTransaction(TransactionLog $originalTransaction, $wallet, string $serviceType, float $oldBalance, float $newBalance): void
+    {
+        $reference = Utility::txRef("reverse", "system");
+
+        $description = match ($serviceType) {
+            'transfer_failed' => 'failed transfer refund',
+            'transfer_reversed' => 'reversed transfer refund',
+            default => 'transfer refund',
+        };
+
+        TransactionLog::create([
+            'user_id' => $originalTransaction->user->id,
+            'wallet_id' => $wallet->id,
+            'type' => 'credit',
+            'amount' => $originalTransaction->amount,
+            'category' => 'refund',
+            'transaction_reference' => $reference,
+            'service_type' => $serviceType,
+            'amount_before' => $oldBalance,
+            'amount_after' => $newBalance,
+            'status' => 'successful',
+            'provider' => 'system',
+            'channel' => 'internal',
+            'currency' => 'NGN',
+            'description' => $description,
+            'payload' => json_encode([
+                'source' => 'webhook_refund',
+                'original_transaction_id' => $originalTransaction->id,
+                'provider' => 'system',
+                'channel' => 'internal',
+            ])
+        ]);
+    }
+
+    /**
+     * Send notifications (push and in-app)
+     */
+    private function sendNotifications($user, TransactionLog $transaction, array $data, string $eventType): void
+    {
+        if (!$user) return;
+
+        try {
+           # Send in-app notification based on event type
+            match ($eventType) {
+                'wallet_funding_completed' => $user->notify(new NombaFundedWallet($transaction, $data)),
+                'virtual_account_funding_completed' => $user->notify(new VirtualAccountDepositNotification($transaction, $data)),
+                'external_bank_transfer_completed' => $user->notify(new NombaTransferSucessfull($transaction, $data)),
+                default => null
+            };
+
+           # Track the event
+            $this->trackWebhookEvent($eventType, $transaction, $data);
+        } catch (\Exception $e) {
+            PaymentLogger::error('Notification sending failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'event_type' => $eventType
+            ]);
+        }
+    }
+
+    /**
+     * Send push notification safely
+     */
+    private function sendPushNotification($user, string $title, string $message): void
+    {
+        if (!$user) return;
+
+        try {
+            event(new PushNotificationEvent($user, $title, $message));
+            PaymentLogger::log("Push notification sent", ['user_id' => $user->id]);
+        } catch (\Throwable $e) {
+            PaymentLogger::error("Push notification failed", [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Track webhook events
+     */
+    private function trackWebhookEvent(string $eventType, TransactionLog $transaction, array $webhookData): void
+    {
+        try {
+            $trackingData = [
+                'user_id' => $transaction->user_id,
+                'transaction_id' => $transaction->id,
+                'amount' => $transaction->amount,
+                'provider' => 'nomba',
+                'reference' => $this->getTransactionReference($webhookData),
+                'status' => $transaction->status,
+                'webhook_event' => $webhookData['event_type'],
+                'processed_at' => now()->toISOString(),
+            ];
+
+            $description = $this->getEventDescription($eventType, $transaction, $webhookData);
+            $this->tracker->track($eventType, $description, $trackingData);
+        } catch (\Exception $e) {
+            PaymentLogger::error('Event tracking failed', [
+                'error' => $e->getMessage(),
+                'transaction_id' => $transaction->id,
+                'event_type' => $eventType,
+            ]);
+        }
+    }
+
+    /**
+     * Get event description for tracking
+     */
+    private function getEventDescription(string $eventType, TransactionLog $transaction, array $webhookData): string
+    {
+        $amount = number_format($transaction->amount, 2);
+
+        return match ($eventType) {
+            'wallet_funding_completed' => "Wallet deposit of ₦{$amount} completed successfully",
+            'virtual_account_funding_completed' => "Received ₦{$amount} via virtual account",
+            'external_bank_transfer_completed' => "Bank transfer of ₦{$amount} completed successfully",
+            default => "Transaction of ₦{$amount} processed"
+        };
+    }
+}
+
+
+{
+//fund wallet
+    "success": true,
+    "data": {
+        "success": true,
+        "message": "Success",
+        "checkoutLink": "https://checkout.nomba.com/pay/e8ae6c03-a2cf-4617-b647-d267052b0614",
+        "orderReference": "e8ae6c03-a2cf-4617-b647-d267052b0614"
+    }
+}
+
+
+{
+//when user funds wallet
+    "event_type": "payment_success",
+    "requestId": "8e61cf85-16f4-448a-bade-8fcd8429e95a",
+    "data": {
+        "merchant": {
+            "walletId": "686bd59f0aeace5f0240241b",
+            "walletBalance": 84.41,
+            "userId": "613027df-b87e-418b-b399-c29d4111beec"
+        },
+        "terminal": [],
+        "tokenizedCardData": {
+            "tokenKey": "N/A",
+            "cardType": "Mastercard",
+            "tokenExpiryYear": "N/A",
+            "tokenExpiryMonth": "N/A",
+            "cardPan": "539923**** ****2388"
+        },
+        "transaction": {
+            "fee": 0.7,
+            "type": "online_checkout",
+            "transactionId": "WEB-ONLINE_C-61302-68e79353-020d-4a8f-a5b2-4775844a835f",
+            "cardIssuer": "Mastercard",
+            "responseCode": null,
+            "originatingFrom": "web",
+            "merchantTxRef": "SX47IE",
+            "transactionAmount": 50.0,
+            "time": "2025-07-25T22:44:41Z"
+        },
+        "customer": {
+            "billerId": "539923**** ****2388",
+            "productId": "539923"
+        },
+        "order": {
+            "amount": 50.0,
+            "orderId": "8945ee8c-2046-4dd6-a79b-3dac14d71480",
+            "cardType": "Mastercard",
+            "accountId": "613027df-b87e-418b-b399-c29d4111beec",
+            "cardLast4Digits": "2388",
+            "cardCurrency": "NGN",
+            "customerEmail": "billyhadiattaofeeq@gmail.com",
+            "customerId": "613027df-b87e-418b-b399-c29d4111beec",
+            "isTokenizedCardPayment": "false",
+            "orderReference": "BILLIA|TRNX|3298P5AN",
+            "paymentMethod": "card_payment",
+            "callbackUrl": "https://bilpay.test/api/payment/nomba-callback",
+            "currency": "NGN"
+        }
+    }
+}
+
+
+
+{
+//transaferring out
+    "event_type": "payout_success",
+    "requestId": "8dbe6233-c396-49ad-ba7c-b1cc1f3b35e3",
+    "data": {
+        "merchant": {
+            "walletId": "686bd59f0aeace5f0240241b",
+            "walletBalance": 24.41,
+            "userId": "613027df-b87e-418b-b399-c29d4111beec"
+        },
+        "terminal": [],
+        "transaction": {
+            "fee": 50.0,
+            "type": "transfer",
+            "transactionId": "API-TRANSFER-0A6E4-4580551d-769e-4288-adcd-fc638c2b99f8",
+            "responseCode": null,
+            "originatingFrom": "api",
+            "merchantTxRef": "BILLIA-BKTRF-4878X0PK",
+            "transactionAmount": 10.0,
+            "narration": "Payment for s",
+            "time": "2025-07-25T23:08:03Z"
+        },
+        "customer": {
+            "bankCode": "011",
+            "senderName": "John Doe",
+            "recipientName": "DAVY/audio Wolf",
+            "bankName": "First Bank of Nigeria",
+            "accountNumber": "3146614382"
+        }
+    }
+}
+
+{
+    "event_type": "payment_success",
+    "requestId": "37b0ecd4-7ced-4e7a-a1c7-37c3e63a799a",
+    "data": {
+        "merchant": {
+            "walletId": "686bd59f0aeace5f0240241b",
+            "walletBalance": 34.41,
+            "userId": "613027df-b87e-418b-b399-c29d4111beec"
+        },
+        "terminal": [],
+        "transaction": {
+            "aliasAccountNumber": "5307126455",
+            "fee": 10.0,
+            "sessionId": "000016250726003838000375434258",
+            "type": "vact_transfer",
+            "transactionId": "API-VACT_TRA-61302-45c5098b-5e74-496f-908e-7bfb577bd3d7",
+            "aliasAccountName": "DAVY/audio Wolf",
+            "responseCode": null,
+            "originatingFrom": "api",
+            "transactionAmount": 20.0,
+            "narration": "FBNMOBILE:DAVY AUDIO WOLF/SENT",
+            "time": "2025-07-25T23:38:44Z",
+            "aliasAccountReference": "5307126455",
+            "aliasAccountType": "VIRTUAL"
+        },
+        "customer": {
+            "bankCode": "011",
+            "senderName": "BILLYHADIAT TAOFEEQ OLADEJI",
+            "bankName": "First Bank of Nigeria",
+            "accountNumber": "3146614382"
+        }
+    }
+}
+
+
+Let me break down these Nomba payment webhook event types for you:
+Payment Events (Money Coming IN)
+1. Payment Success (payment_success)
+
+What it means: Money successfully added to your merchant account
+When it triggers: When customers pay you through:
+
+Card payments (Visa, Mastercard, etc.)
+PayByTransfer (bank transfers)
+PayByQR (QR code payments)
+
+
+Example: Customer pays ₦5,000 for your product → Event fires → Your balance increases by ₦5,000
+
+2. Payment Failed (payment_failed)
+
+What it means: A customer tried to pay but the transaction failed
+When it triggers: Payment attempt didn't go through due to:
+
+Insufficient funds
+Network issues
+Invalid card details
+Bank declined transaction
+
+
+Example: Customer tries to pay ₦5,000 but card is declined → Event fires → No money added to your account
+
+3. Payment Reversal (payment_reversal)
+
+What it means: Money that was previously credited to you is now taken back and returned to the customer
+When it triggers:
+
+Chargeback from customer's bank
+Dispute resolution in customer's favor
+Technical error correction
+
+
+Example: You received ₦5,000 yesterday, but today it's reversed → Event fires → Your balance decreases by ₦5,000
+
+Payout Events (Money Going OUT)
+4. Payout Success (payout_success)
+
+What it means: Money successfully sent from your account to another account
+When it triggers: When you successfully:
+
+Transfer funds to bank accounts
+Pay bills (electricity, airtime, etc.)
+Send money to other accounts
+
+
+Example: You transfer ₦10,000 to your business bank account → Event fires → Your balance decreases by ₦10,000
+
+5. Payout Failed (payout_failed)
+
+What it means: You tried to send money but the transaction failed
+When it triggers: Payout attempt failed due to:
+
+Invalid recipient account details
+Insufficient balance
+Network/technical issues
+Recipient bank issues
+
+
+Example: You try to transfer ₦10,000 but recipient account number is wrong → Event fires → Money stays in your account
+
+6. Payout Refund (payout_refund)
+
+What it means: Money you previously sent out is now returned back to your account
+When it triggers:
+
+Failed payout that gets refunded
+Recipient bank returns the funds
+Bill payment refund (e.g., airtime purchase cancelled)
+
+
+Example: You paid ₦2,000 for electricity bill, but payment was rejected → Event fires → ₦2,000 returned to your account
+
+Summary Flow:
+MONEY IN (Payments):
+Customer → [Success/Failed/Reversal] → Your Account
+
+MONEY OUT (Payouts):
+Your Account → [Success/Failed/Refund] → External Account
+Why These Events Matter:
+
+
+  public function transferToBank001(User $user, array $transferData): array
+    {
+
+        $wallet = null;
+        $transaction = null;
+        $paystackTransaction = null;
+        $reference = null;
+        $totalAmount = 0;
+
+        try {
+            #  Validate transfer data
+            DB::beginTransaction();
+            $this->validateTransferData($transferData);
+            $reference = $this->generateReference();
+
+            $feeCalculation = $this->calculateTransactionFee('paystack', 'transfer', $transferData['amount']);
+            $totalAmount = $transferData['amount'] + $feeCalculation['fee'];
+            $wallet = $this->lockWalletForBankTransfer($user, $totalAmount,$reference);
+
+            $recipient = $this->createOrGetRecipient($transferData);
+            $transaction = $this->createTransactionLog($user, $transferData, $reference, 'pending');
+
+            #  Create pending Paystack transaction
+            $paystackTransaction = $this->createPaystackTransaction($transaction, $reference, $transferData, 'pending');
+            $transferResponse = $this->initiatePaystackTransfer($recipient, $transferData, $reference);
+
+            if ($transferResponse['status']) {
+                # Capture balance before any deductions
+                $balanceBeforeTotal = $wallet->fresh()->amount;
+                $this->debitAndUnlockWallet($wallet, $totalAmount, $reference);
+                $this->updateTransactionSuccess($transaction, $paystackTransaction, $transferResponse);
+                $balanceAfterTotal = $wallet->fresh()->amount;
+
+                 $this->recordFeeTransactionOnly($transaction, $feeCalculation, 'paystack', $balanceBeforeTotal, $balanceAfterTotal);
+
+                DB::commit();
+                PaymentLogger::log('Paystack Transfer initialized successfully');
+                return [
+                    'success' => true,
+                    'message' => 'Transfer initiated successfully',
+                    'data' => [
+                        'reference' => $reference,
+                        'transfer_code' => $transferResponse['data']['transfer_code'],
+                        'amount' => $transferData['amount'],
+                        'recipient_name' => $transferData['account_name'],
+                        'bank_name' => $transferData['bank_name']
+                    ]
+                ];
+
+            } else {
+                throw new Exception($transferResponse['message'] ?? 'Transfer failed');
+            }
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            // Critical: Unlock funds on failure if they were locked
+            if ($wallet && $totalAmount > 0 && $reference) {
+                try {
+                    $this->unlockFundsOnFailure($wallet, $totalAmount, $reference);
+                } catch (Exception $unlockError) {
+                    PaymentLogger::error('Failed to unlock funds after transfer failure', [
+                        'user_id' => $user->id,
+                        'reference' => $reference,
+                        'locked_amount' => $totalAmount,
+                        'unlock_error' => $unlockError->getMessage()
+                    ]);
+                }
+            }
+
+            // Update transaction as failed
+            if (isset($transaction)) {
+                $this->updateTransactionFailed($transaction, $paystackTransaction ?? null, $e->getMessage());
+            }
+
+           PaymentLogger::error('Transfer failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'transfer_data' => $transferData
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => null
+            ];
+        }
+    }
+
+
+
+
+
+    public function lockWalletForBankTransfer(User $sender, float $amount, string $reference): Wallet
+    {
+        $start = microtime(true);
+        Log::info("🔒 Trying to acquire lock for user {$sender->id}, reference: {$reference}");
+
+        $wallet = Wallet::where('user_id', $sender->id)
+            ->lockForUpdate()
+            ->first();
+
+        $waited = round((microtime(true) - $start) * 1000, 2); // in ms
+        Log::info("✅ Lock acquired for user {$sender->id}, waited {$waited}ms, reference: {$reference}");
+
+        if (!$wallet) {
+            throw new TransferException('Wallet not found', 404);
+        }
+
+        $availableBalance = $wallet->amount - $wallet->locked_amount;
+        if ($amount > $availableBalance) {
+            Log::warning("❌ Insufficient balance for user {$sender->id}, reference: {$reference}");
+             throw ValidationException::withMessages([
+                 'product_id' => 'Insufficient available balance.',
+             ]);
+        }
+
+        // Lock funds (increment locked_amount)
+        $this->lockAmount($wallet, $amount, $reference);
+
+        Log::info("💰 Locked amount {$amount} for user {$sender->id}, reference: {$reference}");
+
+        return $wallet;
+    }
+

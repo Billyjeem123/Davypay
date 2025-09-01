@@ -1,0 +1,464 @@
+<?php
+
+namespace App\Http\Controllers\v1\Betting;
+
+use App\Helpers\RedbillerLogger;
+use App\Helpers\Utility;
+use App\Http\Controllers\Controller;
+use App\Models\TransactionLog;
+use App\Models\User;
+use App\Models\Wallet;
+use GuzzleHttp\Exception\TransferException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+
+class RedBillerBettingController extends Controller
+{
+
+
+
+    public function fundBettingAccount(Request $request): JsonResponse
+    {
+        DB::beginTransaction();
+
+        try {
+            # Validate inputs
+            $request->validate([
+                'product' => 'required|string',
+                'customer_id' => 'required|string',
+                'amount' => 'required|numeric|min:100', # Minimum betting amount
+                'phone_no' => 'required|string',
+            ]);
+
+            $user = auth()->user();
+            $amount = (float)$request->amount;
+
+            # Get user's wallet
+            $wallet = Wallet::where('user_id', $user->id)->first();
+
+            if (!$wallet) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Wallet not found'
+                ], 404);
+            }
+
+            # Check if user has sufficient balance
+            if ($wallet->amount < $amount) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Insufficient wallet balance'
+                ], 400);
+            }
+
+            # Generate a unique transaction reference
+            $reference = 'BET' . strtoupper(Str::random(12));
+
+            # Log transaction before processing
+            $balanceBefore = $wallet->amount;
+
+            $transactionLog = TransactionLog::create([
+                'user_id' => $user->id,
+                'wallet_id' => $wallet->id,
+                'type' => 'debit',
+                'category' => 'betting_fund',
+                'amount' => $amount,
+                'transaction_reference' => $reference,
+                'service_type' => 'betting-payment',
+                'amount_before' => $balanceBefore,
+                'amount_after' => $balanceBefore, // Don't deduct yet until we confirm success
+                'status' => 'pending',
+                'provider' => 'redbiller',
+                'channel' => 'api',
+                'currency' => 'NGN',
+                'description' => "Betting account funding for {$request->product} - Customer ID: {$request->customer_id}",
+                'provider_response' => json_encode([]),
+                'payload' => json_encode([
+                    'product' => $request->product,
+                    'customer_id' => $request->customer_id,
+                    'phone_no' => $request->phone_no,
+                    'amount' => $amount,
+                    'reference' => $reference
+                ]),
+            ]);
+
+            # Send request to Redbiller betting payment endpoint
+            $redbillerResponse = Http::timeout(30)->withHeaders([
+                'Private-Key' => config('services.redbiller.private_key'),
+                'Content-Type' => 'application/json',
+            ])->post('https://api.live.redbiller.com/1.5/bills/betting/account/payment/create', [
+                'product' => $request->product,
+                'customer_id' => $request->customer_id,
+                'amount' => $amount,
+                'phone_no' => $request->phone_no,
+                'callback_url' => route('betting.callback'),
+                'reference' => $reference
+            ]);
+
+            # Check if HTTP request was successful
+            if (!$redbillerResponse->successful()) {
+                # Update transaction as failed
+                $transactionLog->update([
+                    'status' => 'failed',
+                    'provider_response' => json_encode([
+                        'error' => 'HTTP request failed',
+                        'status_code' => $redbillerResponse->status(),
+                        'response' => $redbillerResponse->body()
+                    ])
+                ]);
+
+                DB::rollback();
+
+                RedbillerLogger::log('Betting payment HTTP request failed', [
+                    'user_id' => $user->id,
+                    'reference' => $reference,
+                    'status_code' => $redbillerResponse->status(),
+                    'error' => $redbillerResponse->body()
+                ]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to process betting payment',
+                    'error' => 'Provider service unavailable'
+                ], 500);
+            }
+
+            $responseData = $redbillerResponse->json();
+
+            # CRITICAL FIX: Check the actual API business logic success
+            # The API returns 200 but with status: "false" on errors
+            $isApiSuccess = isset($responseData['status']) &&
+                ($responseData['status'] === 'true' || $responseData['status'] === true) &&
+                isset($responseData['response']) &&
+                $responseData['response'] == 200;
+
+            if ($isApiSuccess) {
+                # Only now debit user's wallet since API confirmed success
+                $this->debitWallet($wallet, $amount, $reference);
+
+                # Create pointer file (3D-Authentication) - only on success
+                $base = public_path('redbiller');
+                $hook = '3D-Authentication-Hook';
+                $hookPath = $base . '/' . $hook;
+
+                if (!File::exists($hookPath)) {
+                    File::makeDirectory($hookPath, 0755, true);
+                }
+
+                $pointerPath = $hookPath . '/' . $reference;
+                File::put($pointerPath, json_encode([
+                    'reference' => $reference,
+                    'user_id' => $user->id,
+                    'amount' => $amount,
+                    'transaction_id' => $transactionLog->id,
+                    'created_at' => now()->toISOString()
+                ]));
+
+                # Update transaction log with success
+                $transactionLog->update([
+                    'status' => 'processing', # or 'completed' depending on your flow
+                    'provider_response' => json_encode($responseData),
+                    'amount_after' => $wallet->fresh()->amount
+                ]);
+
+                DB::commit();
+
+                RedbillerLogger::log('Betting payment initiated successfully', [
+                    'user_id' => $user->id,
+                    'reference' => $reference,
+                    'amount' => $amount,
+                    'provider_response' => $responseData
+                ]);
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Betting account funding initiated successfully',
+                    'data' => [
+                        'reference' => $reference,
+                        'amount' => $amount,
+                        'transaction_id' => $transactionLog->id,
+                        'wallet_balance' => $wallet->fresh()->amount,
+                        'redbiller_response' => $responseData
+                    ]
+                ]);
+
+            } else {
+                # API returned 200 but business logic failed
+                $errorMessage = $responseData['message'] ?? 'Unknown error from provider';
+
+                $transactionLog->update([
+                    'status' => 'failed',
+                    'provider_response' => json_encode($responseData)
+                ]);
+
+                DB::rollback();
+
+                RedbillerLogger::log('Betting payment business logic failed', [
+                    'user_id' => $user->id,
+                    'reference' => $reference,
+                    'api_message' => $errorMessage,
+                    'provider_response' => $responseData
+                ]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Betting payment failed',
+                    'error' => $errorMessage
+                ], 400);
+            }
+
+        } catch (ValidationException $e) {
+            DB::rollback();
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (TransferException $e) {
+            DB::rollback();
+
+            if (isset($transactionLog)) {
+                $transactionLog->update(['status' => 'failed']);
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], $e->getCode());
+
+        } catch (Exception $e) {
+            DB::rollback();
+
+            if (isset($transactionLog)) {
+                $transactionLog->update([
+                    'status' => 'failed',
+                    'provider_response' => json_encode(['error' => $e->getMessage()])
+                ]);
+            }
+
+            RedbillerLogger::log('Betting payment exception', [
+                'user_id' => $user->id ?? null,
+                'reference' => $reference ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred while processing your request'
+            ], 500);
+        }
+    }
+
+
+    public function bettingCallback(Request $request): JsonResponse
+    {
+        try {
+            $reference = $request->input('reference');
+            $status = $request->input('status');
+
+            if (!$reference) {
+                return response()->json(['status' => 'error', 'message' => 'Reference required'], 400);
+            }
+
+            # Find transaction
+            $transaction = TransactionLog::where('transaction_reference', $reference)->first();
+
+            if (!$transaction) {
+                RedbillerLogger::log('Callback received for unknown transaction', ['reference' => $reference]);
+                return response()->json(['status' => 'error', 'message' => 'Transaction not found'], 404);
+            }
+
+            # Update transaction status based on callback
+            $finalStatus = ($status === 'successful' || $status === 'success') ? 'successful' : 'failed';
+
+            $transaction->update([
+                'status' => $finalStatus,
+                'provider_response' => json_encode(array_merge(
+                    json_decode($transaction->provider_response, true) ?? [],
+                    $request->all()
+                ))
+            ]);
+
+            # If transaction failed, credit back the wallet
+            if ($finalStatus === 'failed') {
+                $wallet = Wallet::find($transaction->wallet_id);
+                if ($wallet) {
+                    $wallet->increment('amount', $transaction->amount);
+
+                    RedbillerLogger::log('Wallet credited back due to failed betting transaction', [
+                        'wallet_id' => $wallet->id,
+                        'amount' => $transaction->amount,
+                        'reference' => $reference
+                    ]);
+                }
+            }
+
+            # Clean up pointer file
+            $base = public_path('redbiller');
+            $hook = '3D-Authentication-Hook';
+            $pointerPath = $base . '/' . $hook . '/' . $reference;
+
+            if (File::exists($pointerPath)) {
+                File::delete($pointerPath);
+            }
+
+            RedbillerLogger::log('Betting callback processed', [
+                'reference' => $reference,
+                'status' => $finalStatus,
+                'transaction_id' => $transaction->id
+            ]);
+
+            return response()->json(['status' => 'success']);
+
+        } catch (Exception $e) {
+            RedbillerLogger::log('Betting callback error', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json(['status' => 'error'], 500);
+        }
+    }
+
+    public function getBetSites(Request $request): JsonResponse
+    {
+        try {
+            $redbillerResponse = Http::timeout(30)->withHeaders([
+                'Private-Key' => config('services.redbiller.private_key'),
+                'Content-Type' => 'application/json',
+            ])->get('https://api.live.redbiller.com/1.5/bills/betting/providers/list');
+
+            if ($redbillerResponse->successful()) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $redbillerResponse->json()
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch betting providers'
+            ], 500);
+
+        } catch (Exception $e) {
+            RedbillerLogger::log('Get bet sites error', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Service temporarily unavailable'
+            ], 500);
+        }
+    }
+
+    public function verifyBettingAccount(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'product' => 'required|string',
+                'customer_id' => 'required|string',
+            ]);
+
+            $redbillerResponse = Http::timeout(30)->withHeaders([
+                'Private-Key' => config('services.redbiller.private_key'),
+                'Content-Type' => 'application/json',
+            ])->post('https://api.live.redbiller.com/1.5/bills/betting/account/verify', [
+                'product' => $request->product,
+                'customer_id' => $request->customer_id,
+            ]);
+
+            if ($redbillerResponse->successful()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Account verification completed',
+                    'data' => $redbillerResponse->json(),
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Account verification failed',
+                'error' => $redbillerResponse->body()
+            ], 400);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (Exception $e) {
+            RedbillerLogger::log('Betting account verification error', [
+                'error' => $e->getMessage(),
+                'request' => $request->all()
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Verification service temporarily unavailable'
+            ], 500);
+        }
+    }
+
+    public function getBettingTransactionHistory(Request $request): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            $perPage = $request->input('per_page', 15);
+
+            $transactions = TransactionLog::where('user_id', $user->id)
+                ->where('category', 'betting_fund')
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $transactions
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch transaction history'
+            ], 500);
+        }
+    }
+
+    private function debitWallet(Wallet $wallet, float $amount, string $reference): void
+    {
+        $balanceBefore = $wallet->amount;
+
+        if ($wallet->amount < $amount) {
+            throw new TransferException('Insufficient wallet balance for this transaction.', 400);
+        }
+
+        RedbillerLogger::log('Debiting wallet for betting', [
+            'wallet_id' => $wallet->id,
+            'amount' => $amount,
+            'balance_before' => $balanceBefore,
+            'reference' => $reference
+        ]);
+
+        $affected = Wallet::where('id', $wallet->id)
+            ->where('amount', '>=', $amount)
+            ->decrement('amount', $amount);
+
+        if ($affected === 0) {
+            throw new TransferException('Failed to debit wallet - insufficient funds or concurrent modification', 400);
+        }
+
+        RedbillerLogger::log('Wallet debited successfully for betting', [
+            'wallet_id' => $wallet->id,
+            'balance_after' => $wallet->fresh()->amount,
+            'reference' => $reference
+        ]);
+    }
+}

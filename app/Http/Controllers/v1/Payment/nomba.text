@@ -1,0 +1,419 @@
+<?php
+
+namespace App\Http\Controllers\v1\Payment;
+
+use App\Helpers\PaymentLogger;
+use App\Helpers\Utility;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\NombaTransferRequest;
+use App\Models\NombaTransaction;
+use App\Models\PlatformFee;
+use App\Models\TransactionFee;
+use App\Models\TransactionLog;
+use App\Models\User;
+use App\Models\VirtualAccount;
+use App\Services\NombaService;
+use Exception;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+
+class NombaTransferController extends Controller
+{
+
+    protected $nombaService;
+
+    public function __construct(NombaService $nombaService)
+    {
+        $this->nombaService = $nombaService;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function transferToBank(NombaTransferRequest $request)
+    {
+        $validated = $request->validated();
+
+        $result = $this->processTransfer($validated);
+
+        if ($result['success']) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Transfer successful',
+                'data' => $result['data']
+            ]);
+        }
+
+        return  $result;
+    }
+
+
+    /**
+     * @throws Exception
+     */
+    public function processTransfer(array $data): array
+    {
+        $user = Auth::user();
+        $reference = $this->generateReference();
+
+        $payload = [
+            'amount' => $data['amount'],
+            'accountNumber' => $data['account_number'],
+            'accountName' => $data['account_name'],
+            'bankCode' => $data['bank_code'],
+            'merchantTxRef' => $reference,
+            'senderName' => $user->first_name . " " . $user->last_name,
+            'narration' => $data['narration'] ?? '',
+            'transaction_pin' => $data['transaction_pin'],
+        ];
+
+        # 1. Verify PIN
+        if (!$this->verifyTransactionPin($user, $payload['transaction_pin'])) {
+            return [
+                'success' => false,
+                'message' => "Invalid transaction PIN",
+                'data' => []
+            ];
+        }
+
+        # 2. Check wallet balance
+        $this->checkWalletBalance($user, $payload['amount']);
+
+        # 3. Call Nomba first before logging/debiting
+        try {
+           $response = $this->nombaService->makeAuthenticatedRequest('POST', '/transfers/bank', $payload);
+
+
+            if ($response && $response->successful()) {
+                $responseData = $response->json();
+
+                # 4. If successful, create logs and debit wallet
+                $this->debitWallet($user, $payload['amount']);
+                $transaction = $this->createTransactionLog($user, $payload, $reference, 'pending');
+                $this->createNombaTransaction($transaction, $reference, $payload, 'pending', $responseData);
+
+
+                # charge user platform fees
+                $feeCalculation = $this->calculateTransactionFee('nomba', 'transfer', $payload['amount'] ?? 0);
+                $feeTransaction = $this->processFeeTransaction($transaction, $feeCalculation, 'nomba');
+
+                return [
+                    'success' => true,
+                    'message' => 'Transfer initiated successfully',
+                    'data' => $responseData['data'] ?? []
+                ];
+            }
+
+            # Handle API failure
+            $errorData = $response ? $response->json() : ['description' => 'No response received'];
+
+            return [
+                'success' => false,
+                'message' => 'Transfer failed',
+                'error' => $errorData,
+                'status' => $response ? $response->status() : 500
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Nomba transfer to bank failed', [
+                'user_id' => $user->id,
+                'reference' => $reference,
+                'payload' => $payload,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'An unexpected error occurred during the transfer.',
+                'error' => $e->getMessage(),
+                'status' => 500
+            ];
+        }
+    }
+
+    /**
+     * Generate unique transfer reference
+     */
+    private function generateReference()
+    {
+        return Utility::txRef("bank-transfer", "nomba", false);
+    }
+
+
+    private function getAccountName(): ?string
+    {
+        $user = Auth::user();
+
+        $nombaAccount = VirtualAccount::where('user_id', $user->id)
+            ->where('provider', 'nomba')
+            ->first();
+
+        return $nombaAccount?->account_name;
+    }
+
+
+    /**
+     * Verify user's transaction PIN
+     */
+    private function verifyTransactionPin($user, string $pin): bool
+    {
+        #  Implement your PIN verification logic here
+        #  This could be hashed PIN comparison
+        return password_verify($pin, $user->pin);
+    }
+
+
+    /**
+     * Check if user has sufficient wallet balance
+     */
+    private function checkWalletBalance(User $user, float $amount)
+    {
+        $wallet = $user->wallet;
+
+        if (!$wallet) {
+            throw new Exception('Wallet not found');
+        }
+
+        if ($wallet->amount < $amount) {
+            throw new Exception('Insufficient wallet balance');
+        }
+    }
+
+    /**
+     * Create transaction log
+     */
+    private function createTransactionLog(User $user, array $transferData, string $reference, string $status)
+    {
+        return TransactionLog::create([
+            'user_id' => $user->id,
+            'wallet_id' => $user->wallet->id,
+            'type' => 'debit',
+            'category' => 'external_bank_transfer',
+            'amount' => $transferData['amount'],
+            'transaction_reference' => $reference,
+            'service_type' => 'external_bank_transfer',
+            'amount_before' => $user->wallet->amount,
+            'amount_after' => $user->wallet->amount - $transferData['amount'],
+            'status' => $status,
+            'provider' => 'nomba',
+            'channel' => 'nomba_transfer',
+            'currency' => 'NGN',
+            'image' => request()->image,
+            'description' => 'Sent to ' . $transferData['accountName'],
+            'payload' => [
+                'initiated_at' => now(),
+                'ip' => request()->ip(),
+                'transfer_details' => [
+                    'account_number' => $transferData['accountNumber'],
+                    'account_name' => $transferData['accountName'],
+                    'bank_code' => $transferData['bankCode'],
+                    'merchantTxRef' => $transferData['merchantTxRef'],
+                    'data'  => $transferData,
+                ]
+            ],
+        ]);
+    }
+
+
+    /**
+     * Create Paystack transaction record
+     */
+    private function createNombaTransaction($transaction, string $reference, array $transferData, string $status, $responseData)
+    {
+        return NombaTransaction::create([
+            'transaction_id' => $transaction->id,
+            'reference' => $reference,
+            'merchant_tx_ref' => $responseData['data']['meta']['merchantTxRef'] ?? '',
+            'order_id' => $responseData['data']['id'],
+            'amount' => $transferData['amount'],
+            'status' => $status,
+            'metadata' => json_encode([
+                'type' => 'transfer',
+                'account_number' => $transferData['accountNumber'],
+                'account_name' => $transferData['accountName'],
+                'bank_code' => $transferData['bankCode']
+            ]),
+        ]);
+    }
+
+    /**
+     * Debit user wallet
+     */
+    private function debitWallet(User $user, float $amount)
+    {
+        $wallet = $user->wallet;
+        $wallet->amount -= $amount;
+        $wallet->save();
+    }
+
+
+    private function updateTransactionSuccess($transaction, $paystackTransaction, $transferResponse)
+    {
+        $transaction->update([
+            'status' => 'success',
+            'payload' => array_merge($transaction->payload, [
+                'completed_at' => now(),
+                'paystack_response' => $transferResponse
+            ])
+        ]);
+
+    }
+
+
+
+    /**
+     * Create completed fee transaction record (reusable for all providers)
+     */
+    private function processFeeTransaction($transaction, $feeCalculation, $provider)
+    {
+        if (!$feeCalculation['success'] || $feeCalculation['fee'] <= 0) {
+            return null;
+        }
+
+        $wallet = $transaction->user->wallet;
+
+        # Actually deduct the fee from wallet
+        $feeOldBalance = $wallet->fresh()->amount;
+        $wallet->decrement('amount', $feeCalculation['fee']);
+        $feeNewBalance = $wallet->fresh()->amount;
+
+        $feeTransaction = $this->createCompletedFeeTransaction(
+            $transaction->user,
+            $transaction,
+            $feeCalculation['fee'],
+            $transaction->transaction_reference,
+            $feeCalculation,
+            $provider,
+            $feeOldBalance,
+            $feeNewBalance
+        );
+
+        PaymentLogger::log('Fee deducted and transaction created', [
+            'fee_transaction_id' => $feeTransaction->id,
+            'parent_transaction_id' => $transaction->id,
+            'fee_amount' => $feeCalculation['fee'],
+            'fee_percentage' => $feeCalculation['fee_percentage'],
+            'wallet_balance_before_fee' => $feeOldBalance,
+            'wallet_balance_after_fee' => $feeNewBalance
+        ]);
+
+        return $feeTransaction;
+    }
+
+    /**
+     * Create completed fee transaction record (reusable for all providers)
+     */
+    private function createCompletedFeeTransaction($user, $mainTransaction, $feeAmount, $reference, $feeCalculation, $provider, $balanceBefore, $balanceAfter)
+    {
+        $feeTransaction = TransactionLog::create([
+            'user_id' => $user->id,
+            'wallet_id' => $user->wallet->id,
+            'type' => 'debit', # Fee is a debit from user's perspective
+            'amount' => $feeAmount,
+            'category' => 'charges',
+            'transaction_reference' => $reference,
+            'service_type' => 'transaction_fee',
+            'amount_before' => $balanceBefore, // Balance before fee deduction
+            'amount_after' => $balanceAfter,   // Balance after fee deduction
+            'status' => 'successful', # Created as successful since payment confirmed
+            'provider' => $provider,
+            'channel' => $provider ,
+            'currency' => "NGN",
+            'description' => "Charges",
+            'paid_at' => now(),
+            'payload' => json_encode([
+                'parent_transaction_id' => $mainTransaction->id,
+                'fee_calculation' => $feeCalculation,
+                'processed_at' => now(),
+            ]),
+        ]);
+
+        # Also create record in PlatformFees table for better analytics
+        PlatformFee::create([
+            'transaction_id' => $mainTransaction->id,
+            'user_id' => $user->id,
+            'fee_amount' => $feeAmount,
+            'fee_percentage' => $feeCalculation['fee_percentage'] ?? 0,
+            'provider' => $provider,
+            'transaction_type' => $this->getTransactionType($mainTransaction), // deposit, transfer, etc.
+        ]);
+
+        return $feeTransaction;
+    }
+
+
+    /**
+     * Get transaction type for platform fees
+     */
+    private function getTransactionType($transaction): string
+    {
+        // Map transaction categories to platform fee types
+        $typeMapping = [
+            'deposit' => 'deposit',
+            'transfer' => 'transfer',
+            'withdrawal' => 'withdrawal',
+            'payment' => 'payment',
+        ];
+
+        return $typeMapping[$transaction->category] ?? 'other';
+    }
+
+    /**
+     * Calculate transaction fee based on provider, type, and amount (reusable)
+     */
+    private function calculateTransactionFee($provider, $type, $amount): array
+    {
+        try {
+            $feeRule = TransactionFee::where('provider', $provider)
+                ->where('type', $type)
+                ->where('min', '<=', $amount)
+                ->where('max', '>=', $amount)
+                ->first();
+
+            if (!$feeRule) {
+                // No fee structure found - continue with zero fee
+                return [
+                    'success' => true,
+                    'message' => "No fee structure configured for {$provider} {$type} - proceeding with zero fee",
+                    'fee' => 0,
+                    'fee_percentage' => 0,
+                    'fee_rule_id' => null,
+                ];
+            }
+
+            $fee = ($amount * $feeRule->fee) / 100; // Assuming fee is percentage
+
+            return [
+                'success' => true,
+                'message' => 'Fee calculated successfully',
+                'fee' => round($fee, 2),
+                'fee_percentage' => $feeRule->fee,
+                'fee_rule_id' => $feeRule->id,
+                'amount_range' => [
+                    'min' => $feeRule->min,
+                    'max' => $feeRule->max,
+                ],
+            ];
+        } catch (\Exception $e) {
+            # Even on error, continue with zero fee instead of stopping transaction
+            PaymentLogger::error('Fee calculation error - proceeding with zero fee', [
+                'provider' => $provider,
+                'type' => $type,
+                'amount' => $amount,
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Fee calculation failed - proceeding with zero fee',
+                'fee' => 0,
+                'fee_percentage' => 0,
+                'fee_rule_id' => null,
+            ];
+        }
+    }
+
+
+}
+

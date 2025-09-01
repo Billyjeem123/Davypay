@@ -1,0 +1,118 @@
+:root {
+    --bg-gradient: linear-gradient(
+        92.19deg,
+        #40ddff 0%,
+        #7612fa 25.08%,
+        #fa12e3 100%
+    ) !important;
+}
+
+.page-title {
+    font-size: 25px !important;
+}
+.side-nav-link {
+    /* margin-bottom: 5px; */
+    border-radius: 5px !important;
+}
+.side-nav-link:hover {
+    background-color: #000000;
+}
+.sidenav-active {
+    /* background: var(--bg-gradient); */
+    background: #727cf5;
+    color: #ffffff;
+}
+.bg-gradient {
+    background: var(--bg-gradient) !important;
+    color: #ffffff;
+}
+.bg-pink {
+    background: #ff1d9c57;
+}
+.btn-gradient {
+    background: var(--bg-gradient);
+    border-radius: 5px;
+    border: none;
+    color: #ffffff;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out !important;
+}
+.border-gradient {
+    border: 1px solid transparent;
+    border-image-source: var(--bg-gradient);
+    border-image-slice: 1;
+}
+.border-gradient:hover {
+    background: var(--bg-gradient);
+    color: #ffffff !important;
+}
+.btn-gradient:hover {
+    background: linear-gradient(
+        92.19deg,
+        #fa12e3 25.08%,
+        #7612fa 100%,
+        #40ddff 0%
+    ) !important;
+    color: #ffffff;
+}
+.text-dark {
+    color: #000000 !important;
+}
+
+input:focus,
+textarea:focus {
+    border-color: #404040 !important;
+}
+input.text-dark {
+    color: #000000 !important;
+    font-weight: 500;
+}
+label {
+    color: #000000;
+}
+.flex-property-0 {
+    flex-grow: 0 !important;
+    flex-basis: content !important;
+    text-align: center !important;
+}
+
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+    /* background: var(--bg-gradient) !important; */
+    background: #727cf5 !important;
+    color: #ffffff !important;
+}
+.text-gradient {
+    /* background: var(--bg-gradient); */
+    background: #727cf5;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.nav-tabs.nav-bordered li a {
+    color: #000000;
+}
+.nav-tabs.nav-bordered li a.active {
+    /* background: var(--bg-gradient); */
+    background: #727cf5;
+    color: #ffffff;
+    border-bottom: #727cf5;
+
+}
+
+.sms-page input[data-switch]:checked + label {
+    background-color: #c61862;
+}
+
+table td,
+table th {
+    color: #000000 !important;
+    font-size: 13px;
+    max-width: 200px;
+    text-align: center;
+}
+table th {
+    text-transform: uppercase;
+    /* font-size: 12px !important; */
+    padding: 1rem 5px !important;
+    text-align: center;
+}

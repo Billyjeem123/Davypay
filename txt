@@ -1,0 +1,168 @@
+  private static function process_response001(string $response, $data): JsonResponse
+    {
+        $response_array = json_decode($response, true);
+        if (is_null($response_array)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid or malformed provider response. Please try again later.'
+            ], 500);
+        }
+        if ($response_array['code'] == '000') {
+            TransactionLog::update_info($data['transaction_id'],['status' =>  'successful', 'provider_response' => $response]);
+            if ($data['service_type'] ==='electricity'){
+                $message = $response_array['response_description']. " Please Find Attach your ". $response_array['purchased_code'];
+            }elseif ($data['service_type'] ==='jamb'){
+                $message = $response_array['response_description']. " Please Find Attach your ". $response_array['purchased_code'];
+            }
+            else{
+                $message = $response_array['response_description'];
+            }
+            if ($data['service_type'] =='waec'){
+                $pins = $response_array['cards'];
+                return response()->json([
+                    'status' => true,
+                    'message' => $message,
+                    'pins' => $pins
+                ]);
+            }
+            return response()->json([
+                'status' => true,
+                'message' => $message
+            ]);
+        }else{
+             # handle failed transaction
+          #  self::handleFailedTransaction($data['transaction_id'], $data);
+          #  Wallet::add_to_wallet($data['amount'])
+            return response()->json([
+                'status' => false,
+                'message' => $response_array['response_description']
+            ]);
+        }
+    }
+
+
+
+    {
+        aml: {
+            status: false
+        },
+        data: {
+            id: {
+                data: {
+                    id_url: "https://images.dojah.io/id_sample_id_1720624047.jpg",
+                    id_data: {
+                        extras: "",
+                        last_name: "John",
+                        first_name: "Doe",
+                        mrz_status: "",
+                        date_issued: "2019-01-01",
+                        expiry_date: "2020-01-01",
+                        middle_name: "",
+                        nationality: "Nigerian",
+                        date_of_birth: "1990-01-01",
+                        document_type: "National ID",
+                        document_number: "123456789"
+                    },
+                    back_url: "https://images.dojah.io/id_sample_id_1720624047.jpg"
+                },
+                status: true,
+                message: "Successfully verified your id"
+            },
+            index: {
+                data: {},
+                status: true,
+                message: "Successfully continued to the main checks."
+            },
+            selfie: {
+                data: {
+                    selfie_url: "https://images.dojah.io/selfie_sample_image_1720624219.jpg"
+                },
+                status: true,
+                message: "Successfully validated your liveness"
+            },
+            countries: {
+                data: {
+                    country: "Nigeria"
+                },
+                status: true,
+                message: "Successfully continued to the next step."
+            },
+            government_data: {
+                data: {
+                    bvn: {
+                        entity: {
+                            sc: true,
+                            xc: null,
+                            bvn: "22324280081",
+                            nin: "",22222222222
+                            type: "BASIC",
+                            email: "",
+                            title: "",
+                            app_id: null,
+                            gender: "Male",
+                            customer: "6bb82c41-e15e-4308-b99d-e9640818eca9",
+                            createdAt: "2024-11-23T18:38:32.000Z",
+                            image_url: null,
+                            last_name: "OKERE",
+                            updatedAt: "2024-11-23T18:38:32.000Z",
+                            first_name: "IFEANYI",
+                            middle_name: "",
+                            nationality: "",
+                            name_on_card: "",
+                            watch_listed: "",
+                            date_of_birth: "01-Jun-1982",
+                            lga_of_origin: "",
+                            phone_number1: "08011111111",
+                            phone_number2: "",
+                            marital_status: "",
+                            enrollment_bank: "",
+                            state_of_origin: "",
+                            level_of_account: "",
+                            lga_of_residence: "",
+                            enrollment_branch: "",
+                            registration_date: "",
+                            state_of_residence: "",
+                            residential_address: ""
+                        }
+                    }
+                },
+                status: true,
+                message: ""
+            }
+        },
+        value: "123456789",
+        id_url: "https://images.dojah.io/id_sample_id_1720624047.jpg",
+        status: true,
+        id_type: "BVN",
+        message: "Successfully completed the verification.",
+        back_url: "https://images.dojah.io/id_sample_id_1720624047.jpg",
+        metadata: {
+            ipinfo: {
+                as: "AS36873 Airtel Networks Limited",
+                isp: "Airtel Networks Limited",
+                lat: 7.3782,
+                lon: 3.9062,
+                org: "Airtel Networks Limited",
+                zip: "",
+                city: "Ibadan",
+                proxy: false,
+                query: "105.119.6.98",
+                mobile: true,
+                status: "success",
+                country: "Nigeria",
+                hosting: true,
+                district: "",
+                timezone: "Africa/Lagos",
+                region_name: "Oyo State"
+            },
+            device_info: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
+        },
+        widget_id: "688a746c137e17ec4c375968",
+        selfie_url: "https://images.dojah.io/selfie_sample_image_1720624219.jpg",
+        reference_id: "DJ-32DBB181F5",
+        verification_url: "https://app.dojah.io/verifications/bio-data/8072f8f6-fd5e-4544-afec-68ad151fc2a6",
+        verification_mode: "LIVENESS",
+        verification_type: "NATIONAL_ID",
+        verification_value: "123456789",
+        verification_status: "Completed"
+    }
