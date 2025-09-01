@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login – Billia App | Fintech & Digital Payment Platform</title>
-    <meta name="description" content="Securely log in to your Billia App admin dashboard. Manage user transactions, airtime recharges, payments, and platform settings.">
-    <meta name="keywords" content="Billia App, fintech Nigeria, send money, receive payments, airtime recharge, wallet system, digital transactions, payment platform, mobile finance">
-    <meta name="author" content="Billia App">
+    <title>Admin Login – DAVY PAY App | Fintech & Digital Payment Platform</title>
+    <meta name="description" content="Securely log in to your DAVY PAY App admin dashboard. Manage user transactions, airtime recharges, payments, and platform settings.">
+    <meta name="keywords" content="DAVY PAY App, fintech Nigeria, send money, receive payments, airtime recharge, wallet system, digital transactions, payment platform, mobile finance">
+    <meta name="author" content="DAVY PAY App">
 
-    <meta property="og:title" content="Admin Login – Billia App">
-    <meta property="og:description" content="Securely log in to your Billia App admin dashboard">
+    <meta property="og:title" content="Admin Login – DAVY PAY App">
+    <meta property="og:description" content="Securely log in to your DAVY PAY App admin dashboard">
     <meta property="og:image" content="/logo.png">
     <meta property="og:url" content="">
     <meta property="og:type" content="website">
@@ -202,7 +202,7 @@
 <div class="login-container">
     <div class="login-content">
         <a href="#" class="logo">
-            <img src="/logo.png" alt="Billia App Logo">
+            <img src="/logo.png" alt="Davy App Logo">
         </a>
 
         <div class="admin-badge">
@@ -219,7 +219,7 @@
                        class="form-control"
                        id="email"
                        name="email"
-                       placeholder="admin@billiaapp.com"
+                       placeholder="admin@davypay.com"
                        required>
             </div>
 
@@ -249,7 +249,7 @@
         <div class="login-footer">
             <p class="mb-0">
                 <i class="fas fa-lock me-1"></i>
-                Secure admin access for <strong>Billia App</strong>
+                Secure admin access for <strong>DAVY PAY App</strong>
             </p>
             <small class="text-muted">
                 Having trouble? <a href="#" id="supportLink">Contact Support</a>
@@ -384,7 +384,7 @@
     // Support link click
     $('#supportLink').on('click', function(e) {
         e.preventDefault();
-        toastr.info('Please contact support at support@billiaapp.com for assistance.');
+        toastr.info('Please contact support at support@DAVY PAYapp.com for assistance.');
     });
 
     // Add some interactive effects
@@ -398,7 +398,7 @@
 
         // Welcome message
         setTimeout(() => {
-            toastr.info('Welcome to Billia App Admin Panel', 'Access Required');
+            toastr.info('Welcome to DAVY PAY  Admin Panel', 'Access Required');
         }, 1000);
     });
 </script>
