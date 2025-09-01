@@ -343,7 +343,7 @@
                         if (response.redirect) {
                             window.location.href = response.redirect;
                         } else {
-                            window.location.href = '/admin/home';
+                            window.location.href = 'ww.tt';
                         }
                     }, 1000);
                 } else {
