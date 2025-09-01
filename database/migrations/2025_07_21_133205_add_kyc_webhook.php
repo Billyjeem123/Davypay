@@ -10,9 +10,12 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    { Schema::table('kyc', function (Blueprint $table) {
-        $table->json('webhook')->nullable()->after('id');
-    });
+    {
+        if (!Schema::hasColumn('kyc', 'webhook')) {
+        Schema::table('kyc', function (Blueprint $table) {
+            $table->json('webhook')->nullable()->after('id');
+        });
+    }
     }
 
     /**
