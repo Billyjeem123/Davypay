@@ -12,10 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('virtual_cards', function (Blueprint $table) {
-            $table->string('reference')->nullable()->after('card_brand');
-            $table->string('customer_id')->nullable()->after('reference');
+            if (!Schema::hasColumn('virtual_cards', 'reference')) {
+                $table->string('reference')->nullable();
+            }
+
+            if (!Schema::hasColumn('virtual_cards', 'customer_id')) {
+                $table->string('customer_id')->nullable();
+            }
         });
     }
+
 
 
     /**
