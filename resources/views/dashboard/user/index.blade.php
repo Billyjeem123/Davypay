@@ -186,15 +186,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="7" class="text-center py-5">
-                                            <div class="text-muted">
-                                                <i class="fas fa-users fa-3x mb-3 text-muted opacity-50"></i>
-                                                <h5 class="fw-bold text-muted">No Users Found</h5>
-                                                <p class="mb-0">There are no users registered yet.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
+
                                 @endforelse
                                 </tbody>
                             </table>

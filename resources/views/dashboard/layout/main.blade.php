@@ -4,11 +4,11 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>@yield('title', 'Billia App Dashboard')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- App favicon -->
     <link rel="shortcut icon" href="/logo.png">
+    <title>@yield('title', config('app.name') . ' App Dashboard')</title>
 
     <!-- Datatables css -->
     <link href="/assets/front-end/assets/vendor/datatables/responsive.bootstrap5.min.css" rel="stylesheet" type="text/css">

@@ -165,7 +165,7 @@ class DojahWebhookController extends Controller
                 'status'  => 'failed',
             ]
         );
-        $user->notify(new  KycFailedNotification($user, $verificationStatus, $rawTier, $reason=null));
+        $user->notify(new  KycFailedNotification($user, $verificationStatus, $rawTier, $reason));
         KycLogger::log("KYC verification failed for ", [
             'user_id' => $user->email,
             'status'  => $verificationStatus,
