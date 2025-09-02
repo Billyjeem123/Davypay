@@ -26,12 +26,12 @@ class SendOtpMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Your Billa App Verification Code')
+        return $this->subject('Your Verification Code')
             ->view('email.otp_code')
             ->with([
                 'otp' => $this->otp,
-                'appName' => config('app.name', 'Billa App'),
-                'supportEmail' => 'support@billaapp.com', // optional
+                'appName' => config('app.name'),
+                'supportEmail' => 'support@davypay.com', // optional
             ]);
     }
 }
