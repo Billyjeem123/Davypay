@@ -14,18 +14,18 @@ class TierSeeder extends Seeder
     public function run()
     {
         Tier::updateOrCreate(['name' => 'tier_1'], [
-            'daily_limit' => 50000,
-            'wallet_balance' => 100000,
+            'daily_limit' => 1000,
+            'wallet_balance' => 5000,
         ]);
 
         Tier::updateOrCreate(['name' => 'tier_2'], [
-            'daily_limit' => 200000,
-            'wallet_balance' => 500000,
+            'daily_limit' => 100000,
+            'wallet_balance' => 5000000,
         ]);
 
         Tier::updateOrCreate(['name' => 'tier_3'], [
-            'daily_limit' => 5000000,
-            'wallet_balance' => null,
+            'daily_limit' => 1000000,
+            'wallet_balance' => 20000000,
         ]);
     }
 }

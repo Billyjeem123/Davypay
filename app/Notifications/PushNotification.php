@@ -78,7 +78,7 @@ class PushNotification extends Notification
                         ->setTitle($this->title)
                         ->setBody($this->message)
                         ->setIcon('ic_notification') // Use app's default notification icon
-                        ->setImage($this->imageUrl) // Large image (below text)
+//                        ->setImage($this->imageUrl) // Large image (below text)
                         ->setColor('#FF6B35')
                         ->setSound('default')
                         ->setTag($this->category)
@@ -120,8 +120,7 @@ class PushNotification extends Notification
      */
     private function getDefaultImage(): string
     {
-        // Use a properly sized image (recommended: 1024x512px for Android)
-        return url('logo.jpg');
+        return url('logo.png');
     }
 
     /**
@@ -173,66 +172,3 @@ class PushNotification extends Notification
         return filter_var($url, FILTER_VALIDATE_URL) !== false;
     }
 }
-
-//class PushNotification extends Notification
-//{
-//    use Queueable;
-//
-//    public $title;
-//    public $message;
-//    public $imageUrl;
-//    public $actionUrl;
-//    public $category;
-//
-//    /**
-//     * Create a new notification instance.
-//     */
-//    public function __construct($title, $message, $options = [])
-//    {
-//        $this->title = $title;
-//        $this->message = $message;
-//        $this->imageUrl = $options['image'] ?? url('logo.jpg');
-//        $this->actionUrl = $options['action_url'] ?? null;
-//        $this->category = $options['category'] ?? 'general';
-//    }
-//
-//    /**
-//     * Get the notification's delivery channels.
-//     */
-//    public function via(object $notifiable): array
-//    {
-//        return [FcmChannel::class];
-//    }
-//
-//    public function toFcm($notifiable)
-//    {
-//        return FcmMessage::create()
-//            ->setNotification(
-//                \NotificationChannels\Fcm\Resources\Notification::create()
-//                    ->setTitle($this->title)
-//                    ->setBody($this->message)
-//                    ->setImage($this->imageUrl)
-//            )
-//            ->setData([
-//                'click_action' => $this->actionUrl ?? 'FLUTTER_NOTIFICATION_CLICK',
-//                'category' => $this->category,
-//                'image_url' => $this->imageUrl,
-//            ])
-//            ->setAndroid(
-//                AndroidConfig::create()
-//                    ->setPriority(AndroidMessagePriority::HIGH)
-//                    ->setNotification(
-//                        AndroidNotification::create()
-//                            ->setTitle($this->title)
-//                            ->setBody($this->message)
-//                            ->setIcon('logo.jpg')
-//                            ->setColor('#FF6B35')
-//                            ->setImage(url('logo.jpg'))
-//                            ->setSound('default')
-//                            ->setTag($this->category)
-//                            ->setChannelId('high_importance_channel')
-//                            ->setClickAction($this->actionUrl ?? 'FLUTTER_NOTIFICATION_CLICK')
-//                    )
-//            );
-//    }
-//}
