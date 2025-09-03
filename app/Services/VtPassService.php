@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Events\PushNotificationEvent;
 use App\Helpers\BillLogger;
+use App\Helpers\PaymentLogger;
 use App\Helpers\Utility;
 use App\Models\TransactionLog;
 use App\Models\User;
@@ -110,6 +111,13 @@ class VtPassService {
                 ]);
             }
 
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Successful',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " is successful"
+            );
+
             return response()->json([
                 'status' => true,
                 'message' => $message
@@ -118,6 +126,13 @@ class VtPassService {
         } else {
             # Handle provider-level failures (insufficient balance, invalid number, etc.)
             self::handleFailedTransaction($data['transaction_id'], $data);
+
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Failed',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " failed"
+            );
 
             return response()->json([
                 'status' => false,
@@ -695,7 +710,6 @@ class VtPassService {
             $response = self::sendApiRequest($url, $data_to_send,  'POST');
             return self::process_response($response, $data);
         }catch (\Throwable $e){
-
               self::handleFailedTransaction($data['transaction_id'], $data);
             return response()->json([
                 'status' => false,
@@ -974,5 +988,21 @@ class VtPassService {
     }
 
 
+    /**
+     * Send push notification safely
+     */
+    private static  function sendPushNotification($user, string $title, string $message): void
+    {
+        if (!$user) return;
+
+        try {
+            event(new PushNotificationEvent($user, $title, $message));
+            BillLogger::log("Push notification sent", ['user_id' => $user->id]);
+        } catch (\Throwable $e) {
+            BillLogger::error("Push notification failed", [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 
 }

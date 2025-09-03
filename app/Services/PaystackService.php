@@ -195,21 +195,24 @@ class PaystackService
      */
     public function saveCustomer(array $customerData, $userId): PaystackCustomer
     {
-        return PaystackCustomer::create([
-            'paystack_customer_id' => $customerData['id'],
-            'customer_code' => $customerData['customer_code'],
-            'first_name' => $customerData['first_name'],
-            'last_name' => $customerData['last_name'],
-            'user_id' => $userId,
-            'email' => $customerData['email'],
-            'risk_action' => $customerData['risk_action'] ?? null,
-            'identified' => $customerData['identified'] ?? false,
-            'identifications' => $customerData['identifications'] ?? null,
-            'paystack_raw_data' => $customerData,
-            'paystack_created_at' => $customerData['createdAt'] ?? null,
-            'paystack_updated_at' => $customerData['updatedAt'] ?? null
-        ]);
+        return PaystackCustomer::updateOrCreate(
+            ['email' => $customerData['email']],
+            [
+                'paystack_customer_id' => $customerData['id'],
+                'customer_code' => $customerData['customer_code'],
+                'first_name' => $customerData['first_name'],
+                'last_name' => $customerData['last_name'],
+                'user_id' => $userId,
+                'risk_action' => $customerData['risk_action'] ?? null,
+                'identified' => $customerData['identified'] ?? false,
+                'identifications' => $customerData['identifications'] ?? null,
+                'paystack_raw_data' => $customerData,
+                'paystack_created_at' => $customerData['createdAt'] ?? null,
+                'paystack_updated_at' => $customerData['updatedAt'] ?? null
+            ]
+        );
     }
+
 
     /**
      * Handle API errors consistently

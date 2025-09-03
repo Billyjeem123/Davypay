@@ -866,7 +866,7 @@ class PaystackWebhookController extends Controller
     {
         try {
             event(new PushNotificationEvent($user, $title, $message));
-            PaymentLogger::log("notification sent");;
+            PaymentLogger::log("Push notification sent");;
         } catch (\Throwable $e) {
             PaymentLogger::error("Push notification event failed", [
                 'user_id' => $user->id ?? null,
