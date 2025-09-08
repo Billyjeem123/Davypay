@@ -49,6 +49,7 @@
 {{--                                    <th>Transaction ID</th>--}}
                                     <th>User</th>
                                     <th>Provider</th>
+                                    <th>Category</th>
                                     <th>Amount</th>
                                     <th>Type</th>
                                     <th>Status</th>
@@ -68,6 +69,10 @@
                                         </td>
                                         <td  class="text-dark">
                                             {{ ucfirst($txn->provider ?? 'N/A') }}
+                                        </td>
+
+                                        <td  class="text-dark">
+                                            {{ ucfirst($txn->category ?? 'N/A') }}
                                         </td>
                                         <td>
                                             <strong class="text-success">₦{{ number_format($txn->amount, 2) }}</strong><br>

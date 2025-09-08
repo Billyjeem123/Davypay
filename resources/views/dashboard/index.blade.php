@@ -48,15 +48,7 @@
                             <h4 class="h4 text-dark">Financial Overview</h4>
                         </div>
 
-                        <div class="col-sm-6 col-md-3 col-lg-3">
-                            <div class="card border-left-primary shadow-sm">
-                                <div class="card-body">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Net Platform Balance</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($netBalance, 2) }}</div>
-                                    <p class="text-muted small">Net revenue (cash inflow - outflow)</p>
-                                </div>
-                            </div>
-                        </div>
+
 
                         <div class="col-sm-6 col-md-3 col-lg-3">
                             <div class="card border-left-success shadow-sm">
@@ -102,6 +94,16 @@
                             <h4 class="h4 text-dark">Platform Financial Summary</h4>
                         </div>
 
+                        <div class="col-sm-6 col-md-3 col-lg-3">
+                            <div class="card border-left-primary shadow-sm">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Net Platform Balance</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($netBalance, 2) }}</div>
+                                    <p class="text-muted small">Net revenue (cash inflow - outflow)</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-sm-6 col-md-4 col-lg-4">
                             <div class="card border-left-success shadow-sm">
                                 <div class="card-body">
@@ -122,15 +124,7 @@
                             </div>
                         </div>
 
-                        <div class="col-sm-6 col-md-4 col-lg-4">
-                            <div class="card border-left-info shadow-sm">
-                                <div class="card-body">
-                                    <h5 class="text-info mt-0">Internal Platform Credits</h5>
-                                    <h3 class="mt-2 text-dark">₦{{ number_format($internalCredits, 2) }}</h3>
-                                    <p class="text-muted mb-0">Includes referrals, refunds, bonuses</p>
-                                </div>
-                            </div>
-                        </div>
+
                     </div>
 
                     <!-- Service Statistics -->

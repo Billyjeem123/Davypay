@@ -403,7 +403,7 @@ class PaystackWebhookController extends Controller
         if ($result['success'] && isset($result['user'])) {
             $this->handleVirtualAccountFundingNotification($result, $data);
         }
-        $sender = $data['data']['metadata']['account_name'] ?? 'Someone';
+        $sender = $data['data']['authorization']['sender_name'] ?? 'Someone';
         $amount = number_format($data['data']['amount'] / 100, 2);
 
         $this->sendSafePushNotification(
@@ -961,8 +961,8 @@ class PaystackWebhookController extends Controller
             'virtual_account_funding_completed' => [
                 'description' => "received ₦{amount} from {sender} via virtual account",
                 'additional_data' => [
-                    'sender_name' => $webhookData['data']['metadata']['account_name'] ??
-                            $webhookData['data']['authorization']['account_name'] ?? 'Someone',
+                    'sender_name' => $webhookData['data']['authorization']['sender_name'] ??
+                             'Someone',
                     'sender_bank' => $webhookData['data']['authorization']['sender_bank'] ?? 'Unknown Bank',
                     'virtual_account' => $webhookData['data']['metadata']['receiver_account_number'] ?? null,
                     'funding_source' => 'virtual_account',

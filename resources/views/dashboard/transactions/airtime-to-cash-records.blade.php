@@ -56,9 +56,12 @@
                                                                 <i class="fa fa-user text-info"></i>
                                                             </div>
                                                             <div>
-                                                                <span class="fw-bold text-dark">{{ $transfer['user']['first_name'] }} {{ $transfer['user']['last_name'] }}</span><br>
-                                                                <small class="text-muted">ID: {{ $transfer['user']['id'] }}</small>
+                                                                <span class="fw-bold text-dark">
+                                                                    {{ $transfer['user']['first_name'] ?? 'Unknown' }} {{ $transfer['user']['last_name'] ?? '' }}
+                                                                </span><br>
+                                                                <small class="text-muted">ID: {{ $transfer['user']['id'] ?? 'N/A' }}</small>
                                                             </div>
+
                                                         </div>
                                                     </td>
                                                     <td class="align-middle py-3">

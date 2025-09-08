@@ -23,42 +23,6 @@ class UserService
 {
 
 
-    public function processOnboarding001(array $validatedData){
-
-        $user = User::create([
-            'first_name' => $validatedData['first_name'],
-            'last_name'  => $validatedData['last_name'],
-            'email'      => $validatedData['email'],
-            'password'   => Hash::make($validatedData['password']),
-            'phone'      => $validatedData['phone_number'] ?? null,
-            'role'       => 'user',
-            'username'   => $validatedData['username'] ?? null,
-            'pin'        => Hash::make($validatedData['transaction_pin']),
-            'device_token' => $validatedData['device_token'] ?? null,
-            'device_type' => $validatedData['device_type'] ?? null,
-            'referral_code' => 0,
-        ]);
-
-
-
-        Log::info('Onboarding started for: ' . $validatedData['email']);
-
-
-        dispatch(new SendPushNotificationJob(
-            $user,
-            "welcome Bank Account",
-            "yii"
-        ));
-
-        dispatch(new SendPushNotificationJob(
-            $user,
-            'Welcome Back!',
-            'Your wallet has been credited broo.'
-        ));
-
-//    event(new PushNotificationEvent($user, 'Welcome Back!', 'Your wallet has been credited bee.'));
-
-    }
 
 
     public function processOnboarding(array $validatedData)
@@ -352,16 +316,16 @@ class UserService
         $deviceId = $credentials['device_id'];
 
         # Check if another user is using this device
-//        if (UserDevice::isDeviceInUse($deviceId, $user->id)) {
-//            return Utility::outputData(false, 'This device is already registered to another account', [
-//                'error_code' => 'DEVICE_ALREADY_REGISTERED',
-//                'can_force_login' => true
-//            ], 403);
-//        }
+        if (UserDevice::isDeviceInUse($deviceId, $user->id)) {
+            return Utility::outputData(false, 'This device is already registered to another account', [
+                'error_code' => 'DEVICE_ALREADY_REGISTERED',
+                'can_force_login' => true
+            ], 403);
+        }
 
         # Check if user can login from this device
         if (!$user->canLoginFromDevice($deviceId)) {
-//            $user->email_verified_at = null;
+            $user->email_verified_at = null;
             $user->save();
         }
 
@@ -375,7 +339,7 @@ class UserService
             'app_version' => $credentials['app_version'] ?? null,
         ];
 
-        # $user->registerDevice($deviceId, $deviceInfo);
+         $user->registerDevice($deviceId, $deviceInfo);
 
         return true; // Success
     }

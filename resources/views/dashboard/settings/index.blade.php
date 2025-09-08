@@ -53,7 +53,7 @@
                                     <label for="companyName" class="form-label">Software Name</label>
                                     <input class="form-control py-2 ps-3 text-dark @error('companyName') is-invalid @enderror"
                                            id="companyName" type="text" name="companyName"
-                                           value="{{ old('companyName', $admin->company_name ?? 'Billia-App') }}"
+                                           value="{{ old('companyName', $admin->company_name ??  config('app.name'))  }}"
                                            placeholder="ABC">
                                     @error('companyName')
                                     <div class="invalid-feedback">{{ $message }}</div>

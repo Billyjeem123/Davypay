@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>@yield('title', config('app.name') . ' App Dashboard')</title>
+    <title>@yield('title', config('app.name') . ' Dashboard')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 

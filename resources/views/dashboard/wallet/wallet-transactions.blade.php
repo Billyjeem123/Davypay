@@ -17,41 +17,133 @@
 
                     </div>
 
-                    <!-- Stats -->
                     <div class="row mb-4">
-                        <div class="col-md-3">
+
+                        {{-- Card design stats --}}
+                        <div class="col-md-3 mt-4">
                             <div class="card stats-card border-left-success">
                                 <div class="card-body">
                                     <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Transactions</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $total_transactions }}</div>
+                                    <small class="text-muted">Overall number of all transactions processed</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+
+                        <div class="col-md-3 mt-4">
                             <div class="card stats-card border-left-info">
                                 <div class="card-body">
                                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Amount</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($total_amount, 2) }}</div>
+                                    <small class="text-muted">Cumulative value of all credits and debits</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+
+                        <div class="col-md-3 mt-4">
+                            <div class="card stats-card border-left-primary">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Credits</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($credit_sum, 2) }} ({{ $credit_count }})</div>
+                                    <small class="text-muted">Total money added (credit transactions)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mt-4">
+                            <div class="card stats-card border-left-dark">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-dark text-uppercase mb-1">Debits</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($debit_sum, 2) }} ({{ $debit_count }})</div>
+                                    <small class="text-muted">Total money withdrawn (debit transactions)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mt-4">
                             <div class="card stats-card border-left-warning">
                                 <div class="card-body">
                                     <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $pending_count }}</div>
+                                    <small class="text-muted">Transactions waiting for confirmation</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+
+                        <div class="col-md-3 mt-4">
                             <div class="card stats-card border-left-danger">
                                 <div class="card-body">
                                     <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Failed</div>
                                     <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $failed_count }}</div>
+                                    <small class="text-muted">Transactions that were not successful</small>
                                 </div>
                             </div>
                         </div>
+
+                        <div class="col-md-3 mt-4">
+                            <div class="card stats-card border-left-success">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Successful</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $successful_count }}</div>
+                                    <small class="text-muted">Transactions completed without issues</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3 mt-4">
+                            <div class="card stats-card border-left-secondary">
+                                <div class="card-body">
+                                    <div class="text-xs font-weight-bold text-secondary text-uppercase mb-1">Net Flow</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">₦{{ number_format($net_flow, 2) }}</div>
+                                    <small class="text-muted">Overall balance (Successful Credits - Successful Debits)</small>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
+
+
+                    {{-- Breakdown by transaction type --}}
+                    @if(!empty($breakdown_by_type))
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card shadow">
+                                    <div class="card-header">Breakdown by Transaction Type</div>
+                                    <div class="card-body">
+                                        <table class="table table-bordered">
+                                            <thead>
+                                            <tr>
+                                                <th>Type</th>
+                                                <th>Total Amount</th>
+                                                <th>Count</th>
+                                                <th>Successful</th>
+                                                <th>Failed</th>
+                                                <th>Refunds (Count)</th>
+                                                <th>Refunds (Amount)</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            @foreach($breakdown_by_type as $type => $data)
+                                                <tr>
+                                                    <td>{{ ucfirst(str_replace('_', ' ', $type)) }}</td>
+                                                    <td>₦{{ number_format($data['sum'], 2) }}</td>
+                                                    <td>{{ $data['count'] }}</td>
+                                                    <td>{{ $data['success'] }}</td>
+                                                    <td>{{ $data['failed'] }}</td>
+                                                    <td>{{ $data['refund']['count'] ?? 0 }}</td>
+                                                    <td>₦{{ number_format($data['refund']['sum'] ?? 0, 2) }}</td>
+                                                </tr>
+                                            @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
+
+
 
 
                     <!-- Bank Transfer Transactions Table -->
@@ -63,6 +155,7 @@
                                     <th>Transaction ID</th>
                                     <th>User</th>
                                     <th>Provider</th>
+                                    <th>Category</th>
                                     <th>Amount</th>
 
                                     <th>Type</th>
@@ -83,9 +176,13 @@
                                         </td>
                                         <td>
                                            <span class="text-success text-dark fw-bold">
-    {{ ucfirst($txn->provider ?? 'N/A') }}
+                                {{ ucfirst($txn->provider ?? 'N/A') }}
 </span>
 
+                                        </td>
+
+                                        <td  class="text-dark">
+                                            {{ ucfirst($txn->category ?? 'N/A') }}
                                         </td>
                                         <td><strong>₦{{ number_format($txn->amount, 2) }}</strong></td>
 

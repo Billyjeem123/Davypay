@@ -209,7 +209,7 @@ class TransactionLog extends Model
     {
         return $query->where('type', 'credit')
             ->where('status', 'successful')
-            ->whereIn('category', ['deposit', 'external_bank_deposit']);
+            ->whereIn('category', ['deposit', 'external_bank_deposit', 'wallet_transfer_in']);
     }
 
 

@@ -92,14 +92,14 @@ class PaystackTransferController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Banks retrieved successfully',
-            'data' => $banks['data'] ?? []
+            'data' => $banks
         ]);
     }
 
     /**
      * Resolve account number to get account name
      */
-    public function resolveAccount(GlobalRequest $request)
+    public function resolveAccount(GlobalRequest $request): JsonResponse
     {
         $validated = $request->validated();
 

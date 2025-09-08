@@ -188,31 +188,31 @@ class VtPassService {
 
             $referenceId = Utility::txRef("reverse", "system", false);
 
-            TransactionLog::create([
-                'user_id' => $user->id,
-                'wallet_id' => $wallet->id,
-                'type' => 'credit',
-                'category' => 'refund',
-                'amount' => $reversalAmount,
-                'transaction_reference' => $referenceId,
-                'service_type' => $transaction->service_type,
-                'amount_before' => $oldBalance,
-                'amount_after' => $newBalance,
-                'status' => 'successful',
-                'provider' => 'system',
-                'channel' => 'internal',
-                'image' => request()->image,
-                'currency' => 'NGN',
-                'description' => "Refund for bill payment",
-                'provider_response' => json_encode([
-                    'transfer_type' => 'in_app',
-                    'data' => $data,
-                ]),
-                'payload' => json_encode([
-                    'refund_status' => "failed",
-                    'provider' => "vtpass"
-                ]),
-            ]);
+//            TransactionLog::create([
+//                'user_id' => $user->id,
+//                'wallet_id' => $wallet->id,
+//                'type' => 'credit',
+//                'category' => 'refund',
+//                'amount' => $reversalAmount,
+//                'transaction_reference' => $referenceId,
+//                'service_type' => $transaction->service_type,
+//                'amount_before' => $oldBalance,
+//                'amount_after' => $newBalance,
+//                'status' => 'successful',
+//                'provider' => 'system',
+//                'channel' => 'internal',
+//                'image' => request()->image,
+//                'currency' => 'NGN',
+//                'description' => "Refund for bill payment",
+//                'provider_response' => json_encode([
+//                    'transfer_type' => 'in_app',
+//                    'data' => $data,
+//                ]),
+//                'payload' => json_encode([
+//                    'transfer_type' => 'in_app',
+//                    'data' => $data,
+//                ]),
+//            ]);
 
             BillLogger::log('Transaction reversed', [
                 'requestId' => $transaction->request_id,

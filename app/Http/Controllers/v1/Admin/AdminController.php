@@ -28,6 +28,17 @@ use Spatie\Permission\Models\Role;
 
 class AdminController extends Controller
 {
+
+    private const DEBIT_TYPES = [
+        'airtime', 'data', 'electricity', 'cable', 'betting_fund', 'virtual_card_funding',
+        'jamb', 'waec', 'wallet_transfer_out', 'external_bank_transfer', 'admin_reversal', 'charges'
+    ];
+
+    private const CREDIT_TYPES = [
+        'deposit', 'gift_card', 'wallet_transfer_in', 'virtual_card_withdrawal',
+        'referral', 'external_bank_deposit', 'refund', 'top_up'
+    ];
+
     public function index()
     {
         $totalUsers = User::count();
@@ -458,35 +469,104 @@ class AdminController extends Controller
 
 
 
-    public function walletTransactions($user_id)
-    {
-        $stats = $this->getUserTransactionStats($user_id);
-
-        return view('dashboard.wallet.wallet-transactions', [
-            'transactions' => $stats['transactions'],
-            'total_transactions' => $stats['total_transactions'],
-            'total_amount' => $stats['total_amount'],
-            'pending_count' => $stats['pending_count'],
-            'failed_count' => $stats['failed_count'],
-        ]);
-    }
+        public function walletTransactions($user_id)
+        {
+            $stats = $this->getUserTransactionStats($user_id);
 
 
-    private function getUserTransactionStats($user_id)
+            return view('dashboard.wallet.wallet-transactions', [
+                'transactions'       => $stats['transactions'],
+                'total_transactions' => $stats['total_transactions'],
+                'total_amount'       => $stats['total_amount'],
+
+                'pending_count'      => $stats['pending_count'],
+                'failed_count'       => $stats['failed_count'],
+                'successful_count'   => $stats['successful_count'] ?? 0,
+
+                // Credits / Debits
+                'credit_sum'         => $stats['credit_sum'] ?? 0,
+                'debit_sum'          => $stats['debit_sum'] ?? 0,
+                'credit_count'       => $stats['credit_count'] ?? 0,
+                'debit_count'        => $stats['debit_count'] ?? 0,
+
+                // Refunds
+                'refund_sum'         => $stats['refund_sum'] ?? 0,
+                'refund_count'       => $stats['refund_count'] ?? 0,
+
+                // Net Flow
+                'net_flow'           => $stats['net_flow'] ?? 0,
+
+                // Breakdown
+                'breakdown_by_type'  => $stats['breakdown_by_type'] ?? [],
+            ]);
+        }
+
+
+
+    private function getUserTransactionStats($user_id): array
     {
         $transactions = TransactionLog::with('wallet', 'user')
             ->where('user_id', $user_id)
             ->latest()
             ->get();
 
+        // Separate credits & debits
+        $creditTransactions = $transactions->whereIn('category', self::CREDIT_TYPES);
+        $debitTransactions  = $transactions->whereIn('category', self::DEBIT_TYPES);
+
+        // Successful only
+        $successfulCredits = $creditTransactions->whereIn('status', ['success', 'successful']);
+        $successfulDebits  = $debitTransactions->whereIn('status', ['success', 'successful']);
+
+        // Failed only
+        $failedCredits = $creditTransactions->where('status', 'failed');
+        $failedDebits  = $debitTransactions->where('status', 'failed');
+
         return [
-            'transactions' => $transactions,
+            'transactions'       => $transactions,
             'total_transactions' => $transactions->count(),
-            'total_amount' => $transactions->sum('amount'),
-            'pending_count' => $transactions->where('status', 'pending')->count(),
-            'failed_count' => $transactions->where('status', 'failed')->count(),
+            'total_amount'       => $transactions->sum('amount'),
+
+            // ✅ Credits
+            'credit_count'            => $creditTransactions->count(),
+            'credit_sum'              => $successfulCredits->sum('amount'), // ✅ Only successful
+            'failed_credit_sum'       => $failedCredits->sum('amount'),
+            'failed_credit_count'     => $failedCredits->count(),
+
+            // ✅ Debits
+            'debit_count'             => $debitTransactions->count(),
+            'debit_sum'               => $successfulDebits->sum('amount'), // ✅ Only successful
+            'failed_debit_sum'        => $failedDebits->sum('amount'),
+            'failed_debit_count'      => $failedDebits->count(),
+
+            // ✅ Net flow = successful deposits - successful debits
+            'net_flow' => $successfulCredits->sum('amount') - $successfulDebits->sum('amount'),
+
+            // Status breakdown
+            'pending_count'    => $transactions->where('status', 'pending')->count(),
+            'failed_count'     => $transactions->where('status', 'failed')->count(),
+            'successful_count' => $transactions->whereIn('status', ['success', 'successful'])->count(),
+
+            // Breakdown by type
+            'breakdown_by_type' => $transactions->groupBy('type')->map(function ($group) {
+                return [
+                    'count'   => $group->count(),
+                    'sum'     => $group->sum('amount'),
+                    'failed'  => $group->where('status', 'failed')->count(),
+                    'refund'  => [
+                        'count' => $group->where('category', 'refund')->count(),
+                        'sum'   => $group->where('category', 'refund')->sum('amount'),
+                    ],
+                    'success' => $group->whereIn('status', ['success', 'successful'])->count(),
+                ];
+            }),
         ];
     }
+
+
+
+
+
 
 
 
@@ -648,19 +728,34 @@ class AdminController extends Controller
     }
 
     public function toggleRestrict(User $user)
-        {
-            $user->is_account_restricted = !$user->is_account_restricted;
-            $user->restriction_date = now();
-            $user->save();
+    {
+        $user->is_account_restricted = !$user->is_account_restricted;
+        $user->restriction_date = now();
+        $user->save();
 
-            return back()->with('success', 'User restriction status updated successfully.');
+        // Update wallet status if wallet exists
+        if ($user->wallet) {
+            $user->wallet->update([
+                'status' => $user->is_account_restricted ? 'locked' : 'active'
+            ]);
         }
 
-        public function toggleBan(User $user)
+        return back()->with('success', 'User restriction status updated successfully.');
+    }
+
+
+    public function toggleBan(User $user)
         {
             $user->is_ban = !$user->is_ban;
             $user->restriction_date = now();
             $user->save();
+
+            // Update wallet status if wallet exists
+            if ($user->wallet) {
+                $user->wallet->update([
+                    'status' => $user->is_ban ? 'locked' : 'active'
+                ]);
+            }
 
             return back()->with('success', 'User ban status updated successfully.');
         }

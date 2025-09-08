@@ -35,7 +35,7 @@ class NombaService
      *
      * @return array|null
      */
-    public function getAccessToken()
+    public function getAccessToken(): ?array
     {
         try {
             $cachedToken = Cache::get('nomba_access_token');
@@ -110,7 +110,7 @@ class NombaService
      * @return array|null
      */
 
-    public function refreshAccessToken($refreshToken)
+    public function refreshAccessToken($refreshToken): ?array
     {
         try {
             $response = Http::withHeaders([
@@ -957,7 +957,7 @@ class NombaService
     }
 
 
-    public function resolveAccountNumber(array $data)
+    public function resolveAccountNumber(array $data): array
     {
         $payload = [
             'accountNumber' => $data['account_number'],

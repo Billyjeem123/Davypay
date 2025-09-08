@@ -339,7 +339,7 @@ class PaystackTransferService
             'status' => $status,
             'provider' => 'paystack',
             'channel' => 'paystack_transfer',
-            'image' => $this->getBankLogoByCode($transferData['bankCode']),
+            'image' => $this->getBankLogoByCode($transferData['bank_code']),
             'currency' => 'NGN',
             'idempotency_key' => $transferData['idempotency_key'],
             'description' => 'Sent to '. $transferData['account_name'] ,
@@ -486,7 +486,14 @@ class PaystackTransferService
     /**
      * Get list of supported banks
      */
+
     public function getBanks()
+    {
+        $response = Http::get('https://supermx1.github.io/nigerian-banks-api/data.json');
+        return $response->json();
+    }
+
+    public function getBanks001()
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey
