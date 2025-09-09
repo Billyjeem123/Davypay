@@ -86,10 +86,15 @@ return [
     ],
 
     'strowallet' => [
-        'base_url'    => env('STROWALLET_BASE_URL', 'https://strowallet.com/api'),
+        'base_url'    => env('STROLLWALLET_BASE_URL', 'https://strowallet.com/api'),
+        'secret'      => env('STROLLWALLET_PRIVATE_KEY'),
         'public_key'  => env('STROLLWALLET_PUBLIC_KEY'),
+        'webhook_url' => env('STROLLWALLET_WEBHOOK_URL'),
+        'vip_key'    => env('STROLLWALLET_VIP_KEY'),
     ],
 
-
+    'vtpass' => [
+        'base_url'    => env('VTPASS_BASE_URL', 'https://vtpass.com/api/'),
+    ],
 
 ];

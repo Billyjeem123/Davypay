@@ -29,7 +29,7 @@ class VtPassService {
 
     public function __construct()
     {
-        $this->base_url = getenv('VTPASS_BASE_URL');
+        $this->base_url = config('services.vtpass.base_url');
 
         $this->dataAirtimeList = [
             ['name' => 'Mtn', 'img' => url('assets/images/vtu/mtn.jpg'), 'airtime_code' => "mtn", 'data_code' => "mtn-data"],
