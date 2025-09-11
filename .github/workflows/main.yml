@@ -62,8 +62,7 @@ jobs:
           port: 22
           script: |
             cd ${{ env.DEPLOY_PATH }}
-            php artisan config:cache
-            php artisan view:cache
+            php artisan optimize:clear
 
             if [ "${{ env.MIGRATION_CHANGED }}" = "true" ]; then
               echo "🚨 Migration files changed — running migrations..."
