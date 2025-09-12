@@ -142,7 +142,7 @@ class TransactionController extends Controller
             'filter_summary' => $filterSummary,
             'generated_at' => now()->format('F j, Y \a\t g:i A')
         ], function ($message) use ($user, $pdfPath) {
-            $message->to($user->email, $user->name)
+            $message->to($user->email, $user->first_name)
                 ->subject('Your Transaction History Report')
                 ->attach($pdfPath, [
                     'as' => 'transaction_history_' . date('Y-m-d') . '.pdf',

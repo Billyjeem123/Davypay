@@ -6,7 +6,7 @@
 <body>
 <h2>Your Transaction History Report</h2>
 
-<p>Dear {{ $user->name }},</p>
+<p>Dear {{ $user->first_name }},</p>
 
 <p>Please find attached your transaction history report generated on {{ $generated_at }}.</p>
 
