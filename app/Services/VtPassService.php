@@ -72,7 +72,157 @@ class VtPassService {
     }
 
 
+
+
     private static function process_response(string $response, $data): JsonResponse
+    {
+        $response_array = json_decode($response, true);
+
+        if (is_null($response_array)) {
+            // Handle malformed response - this is a provider issue
+            self::handleFailedTransaction($data['transaction_id'], $data);
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid or malformed provider response. Please try again later.'
+            ], 500);
+        }
+
+        // Get transaction status from response
+        $transaction_status = $response_array['content']['transactions']['status'] ?? null;
+
+        // Process different response scenarios
+        if ($response_array['code'] == '000' && $transaction_status == 'delivered') {
+            // Successful transaction
+            $update_data = [
+                'status' => 'successful',
+                'image' => request()->image,
+                'provider_response' => $response,
+                'response_code' => $response_array['requestId'] ?? $response_array['content']['transactions']['transactionId']
+            ];
+
+            TransactionLog::update_info($data['transaction_id'], $update_data);
+
+            // Handle different service types
+            if ($data['service_type'] === 'electricity') {
+                $message = $response_array['response_description'] . " Please Find Attach your " . $response_array['purchased_code'];
+            } elseif ($data['service_type'] === 'jamb') {
+                $message = $response_array['response_description'] . " Please Find Attach your " . $response_array['purchased_code'];
+            } else {
+                $message = $response_array['response_description'];
+            }
+
+            // Handle WAEC with pins
+            if ($data['service_type'] == 'waec' && isset($response_array['cards'])) {
+                return response()->json([
+                    'status' => true,
+                    'message' => $message,
+                    'pins' => $response_array['cards']
+                ]);
+            }
+
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Successful',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " is successful"
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => $message
+            ]);
+
+        }
+        // Check for pending transactions (code 000 but status pending)
+        elseif ($response_array['code'] == '000' && $transaction_status == 'pending') {
+            TransactionLog::update_info($data['transaction_id'], [
+                'status' => 'pending',
+                'provider_response' => $response,
+                'response_code' => $response_array['requestId'] ?? $response_array['content']['transactions']['transactionId']
+            ]);
+
+            // Schedule requery for pending transactions
+           // self::scheduleRequery($data['request_id'] ?? null, $data['transaction_id']);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Transaction is being processed. You will be notified once completed.',
+                'pending' => true
+            ]);
+        }
+        // Handle other transaction statuses (failed, reversed, etc.)
+        elseif ($response_array['code'] == '000' && in_array($transaction_status, ['failed', 'reversed', 'cancelled'])) {
+            self::handleFailedTransaction($data['transaction_id'], $data);
+
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Failed',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " failed"
+            );
+
+            return response()->json([
+                'status' => false,
+                'message' => $response_array['response_description'] ?? 'Transaction failed'
+            ]);
+        }
+        // Handle specific failure codes
+        elseif (in_array($response_array['code'], [
+            '001', '011', '012', '017', '018', '014', '015', '016', '019',
+            '020', '021', '022', '023', '035', '083', '024', '010', '025',
+            '026', '027', '028', '030', '031', '032', '034', '099', '040'
+        ])) {
+            self::handleFailedTransaction($data['transaction_id'], $data);
+
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Failed',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " failed"
+            );
+
+            return response()->json([
+                'status' => false,
+                'message' => $response_array['response_description'] ?? 'Transaction failed with code: ' . $response_array['code']
+            ]);
+        }
+        // Handle minimum amount error
+        elseif ($response_array['code'] == '013') {
+            self::handleFailedTransaction($data['transaction_id'], $data);
+
+            $user = Auth::user();
+            self::sendPushNotification(
+                $user,
+                'Transaction Failed',
+                "Your payment of ₦" . number_format($data['amount'], 2) . " failed"
+            );
+
+            return response()->json([
+                'status' => false,
+                'message' => 'You are attempting to pay an amount lower than the minimum allowed for that product/service.'
+            ]);
+        }
+        // Default case - treat as pending for unknown codes
+        else {
+            TransactionLog::update_info($data['transaction_id'], [
+                'status' => 'pending',
+                'provider_response' => $response,
+                'response_code' => $response_array['code'] ?? 'unknown'
+            ]);
+
+            // Schedule requery for unknown status
+           // self::scheduleRequery($data['request_id'] ?? null, $data['transaction_id']);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Transaction is being processed. You will be notified once completed.',
+                'pending' => true
+            ]);
+        }
+    }
+
+    private static function process_response001(string $response, $data): JsonResponse
     {
         $response_array = json_decode($response, true);
 
@@ -141,6 +291,18 @@ class VtPassService {
         }
     }
 
+
+
+    private static function requeryTransaction(string $request_id): array
+    {
+        $url = env('VTPASS_BASE_URL', 'https://sandbox.vtpass.com/api/') . 'requery';
+
+        $data = ['request_id' => $request_id];
+        $response = self::sendApiRequest($url, $data, 'POST');
+
+        $decoded = json_decode($response, true);
+        return is_array($decoded) ? $decoded : [];
+    }
 
 
 
