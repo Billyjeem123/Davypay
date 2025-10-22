@@ -256,8 +256,8 @@ class DojahWebhookController extends Controller
                 'reference_id' => $payload['reference_id'] ?? null,
                 'widget_id' => $payload['widget_id'] ?? null,
                 'verification_mode' => $payload['verification_mode'] ?? null,
-                'verification_type' => $payload['verification_type'] ?? null,
-                'verification_value' => $payload['verification_value'] ?? null,
+                'verification_type' => $payload['verification_type'] ?? $idData['document_type'],
+                'verification_value' => $payload['verification_value'] ?? $idData['document_number'],
 
                 #  AML and address verification
                 'aml_status' => isset($payload['aml']['status']) ? (bool) $payload['aml']['status'] : null,

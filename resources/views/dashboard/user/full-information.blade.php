@@ -495,7 +495,6 @@
 
 
 
-
                         <!-- Wallet & Cards Tab -->
                         <div class="tab-pane fade" id="wallet" role="tabpanel">
                             <div class="row">
@@ -527,6 +526,35 @@
                                             </div>
                                         </div>
                                     </div>
+                                    @if($user->usdtWallet)
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h5 class="mb-0">USDT Account</h5>
+                                            </div>
+                                            <div class="card-body">
+                                                    <div class="info-item">
+                                                        <div class="info-label">USDT Address</div>
+                                                        <div class="info-value">{{ $user->usdtWallet->address }}</div>
+                                                    </div>
+                                                    <div class="info-item">
+                                                        <div class="info-label">Network</div>
+                                                        <div class="info-value">{{ $user->usdtWallet->network }}</div>
+                                                    </div>
+                                                    <div class="info-item">
+                                                        <div class="info-label">Balance</div>
+                                                        <div class="info-value">{{ $user->usdtWallet->balance }}</div>
+                                                    </div>
+                                                    <div class="info-item">
+                                                        <div class="info-label">Status</div>
+                                                        <div class="info-value">{{ $user->usdtWallet->status }}</div>
+                                                    </div>
+                                                    <div class="info-item">
+                                                        <div class="info-label">Mode</div>
+                                                        <div class="info-value">{{ $user->usdtWallet->mode }}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                    @endif
 
                                     @if($user->virtual_accounts && count($user->virtual_accounts) > 0)
                                         <div class="card">

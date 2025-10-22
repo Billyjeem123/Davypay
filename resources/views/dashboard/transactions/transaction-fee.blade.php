@@ -90,9 +90,9 @@
                                             </h4>
                                             <p class="text-muted mb-0">Configure fees for money transfers</p>
                                         </div>
-{{--                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="addTransferRange()">--}}
-{{--                                            <i class="uil-plus"></i> Add Range--}}
-{{--                                        </button>--}}
+                                        {{--                                        <button type="button" class="btn btn-outline-success btn-sm" onclick="addTransferRange()">--}}
+                                        {{--                                            <i class="uil-plus"></i> Add Range--}}
+                                        {{--                                        </button>--}}
                                     </div>
                                 </div>
                                 <div class="card-body">
@@ -133,7 +133,7 @@
 
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">Provider </label>
-                                                      <input type="text" class="form-control" name="provider" value="{{ \App\Models\Settings::get('preferred_provider') }}" readonly>
+                                                        <input type="text" class="form-control" name="provider" value="{{ \App\Models\Settings::get('preferred_provider') }}" readonly>
                                                     </div>
 
                                                     <input type="hidden" value="transfer" name="type">
@@ -229,6 +229,16 @@
                     </div>
 
                     <div class="row mb-3 bg-white">
+                        <!-- Add Fee Button -->
+                        <div class="col-12 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4>Transaction Fees</h4>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFeeModal">
+                                    <i class="uil-plus"></i> Add New Fee
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="table-responsive">
                             <table id="sms-datatable" class="table table-bordered table-hover w-100 table-centered mb-0">
                                 <thead>
@@ -281,6 +291,65 @@
                         </div>
                     </div>
 
+                    <!-- Add Fee Modal -->
+                    <div class="modal fade" id="addFeeModal" tabindex="-1" aria-labelledby="addFeeModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <form method="POST" action="{{route('transaction-fee.store')}}">
+                                @csrf
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="addFeeModalLabel">Add New Transaction Fee</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label for="add-provider" class="form-label">Provider</label>
+                                            <select class="form-control" id="add-provider" name="provider" required>
+                                                <option value="">Select Provider</option>
+                                                <option value="paystack">Paystack</option>
+                                                <option value="nomba">Nomba</option>
+                                                <option value="system">System</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="add-type" class="form-label">Type</label>
+                                            <select class="form-control" id="add-type" name="type" required>
+                                                <option value="">Select Type</option>
+                                                <option value="transfer">Transfer</option>
+                                                <option value="deposit">Deposit</option>
+                                                <option value="epin_permit">Epin Permit</option>
+                                                <option value="flight">Flight Booking</option>
+                                                <option value="physical_card">Physical Naira Card</option>
+                                                <option value="virtual_card">Virtual Naira Card</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="add-min" class="form-label">Minimum Amount (₦)</label>
+                                            <input type="number" step="0.01" class="form-control" id="add-min" name="min" placeholder="0.00" required>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="add-max" class="form-label">Maximum Amount (₦)</label>
+                                            <input type="number" step="0.01" class="form-control" id="add-max" name="max" placeholder="0.00" required>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="add-fee" class="form-label">Fee (%)</label>
+                                            <input type="number" step="0.01" class="form-control" id="add-fee" name="fee" placeholder="0.00" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Add Fee</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
 
                     <!-- Edit Fee Modal -->
                     <div class="modal fade" id="editFeeModal" tabindex="-1" aria-labelledby="editFeeModalLabel" aria-hidden="true">
@@ -354,7 +423,5 @@
             });
         });
     </script>
-
-
 
 @endsection

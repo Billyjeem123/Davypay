@@ -148,7 +148,6 @@ class TransactionLog extends Model
             PaymentLogger::log("User ID {$user->id} account locked: {$reason}");
             return [false, $reason];
         }
-
         #  Wallet balance limit check (optional feature)
         if (!is_null($tier->wallet_balance)) {
             $walletAmount = optional($user->wallet)->amount ?? 0;

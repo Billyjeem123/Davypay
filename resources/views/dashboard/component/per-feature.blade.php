@@ -1,0 +1,572 @@
+@php
+# Define which apps each section should be excluded from
+# Add app names to exclude that section from showing in those apps
+
+$excludeUserManagement = [];  // e.g., ['DavyPay']
+$excludeKYC = [];  // e.g., ['BilPay', 'ZappPay']
+$excludeTransactions = [];
+$excludeCards = [];
+$excludeWallet = [];
+$excludeAirtimeToCash = [];
+$excludeGiftCards = ['DavyPay', 'BilPay'];  // Example: GiftCards excluded from these apps
+$excludeSecurity = [];
+$excludeSystemConfig = [];
+$excludeSupport = [];
+$excludeRewards = [];
+$excludeBanners = [];
+$excludeEsim = [];
+$excludeRevenues = [];
+@endphp
+
+<div class="h-100" id="leftside-menu-container" data-simplebar>
+    <!--- Sidemenu -->
+    <ul class="side-nav">
+
+        <li class="side-nav-title">Navigation</li>
+
+        <!-- Dashboard - Always visible -->
+        <li class="side-nav-item">
+            <a href="{{ route('admin.home') }}"
+               class="side-nav-link {{ request()->routeIs('admin.home') ? 'sidenav-active' : '' }}">
+                <i class="uil-home-alt"></i>
+                <span> Dashboard </span>
+            </a>
+        </li>
+
+        <!-- User Management Section -->
+        @if (!in_array(config('app.name'), $excludeUserManagement))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['view all users', 'view active users', 'view suspended users', 'manage kyc', 'manage user roles', 'manage user permissions', 'view user activity logs'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarUsers" aria-expanded="false" aria-controls="sidebarUsers"
+               class="side-nav-link">
+                <i class="uil-users-alt"></i>
+                <span> User Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarUsers">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view all users'))
+                    <li>
+                        <a href="{{ route('admin.management') }}"
+                           class="side-nav-link {{ request()->routeIs('admin.management') ? 'sidenav-active' : '' }}">All Users</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view active users'))
+                    <li>
+                        <a href="{{ route('active.users') }}"
+                           class="side-nav-link {{ request()->routeIs('active.users') ? 'sidenav-active' : '' }}">Active Users</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view suspended users'))
+                    <li>
+                        <a href="{{ route('suspended.users') }}"
+                           class="side-nav-link {{ request()->routeIs('suspended.users') ? 'sidenav-active' : '' }}">Suspended Users</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage user roles'))
+                    <li>
+                        <a href="{{ route('users.role') }}"
+                           class="side-nav-link {{ request()->routeIs('users.role') ? 'sidenav-active' : '' }}">User Roles</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage user permissions'))
+                    <li>
+                        <a href="{{ route('users.permission') }}"
+                           class="side-nav-link {{ request()->routeIs('users.permission') ? 'sidenav-active' : '' }}">User Permissions</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view user activity logs'))
+                    <li>
+                        <a href="{{ route('users.activity') }}"
+                           class="side-nav-link {{ request()->routeIs('users.activity') ? 'sidenav-active' : '' }}">User Activity Logs</a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- KYC Management Section -->
+        @if (!in_array(config('app.name'), $excludeKYC))
+        @if(Auth::guard('admin')->check() && Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarKYC" aria-expanded="false" aria-controls="sidebarKYC"
+               class="side-nav-link">
+                <i class="uil-user-check"></i>
+                <span>KYC Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarKYC">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->check() && Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']))
+                    <li>
+                        <a href="{{ route('users.kyc') }}"
+                           class="side-nav-link {{ request()->routeIs('users.kyc') ? 'sidenav-active' : '' }}">
+                            <i class="uil-cog me-1"></i> Manage KYC
+                        </a>
+                    </li>
+                    @endif
+
+                    <li>
+                        <a href="{{route('users.tier_1')}}"
+                           class="side-nav-link {{ request()->routeIs('users.tier_1') ? 'sidenav-active' : '' }}">
+                            <i class="uil-check-circle me-1"></i> Tier 1
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{route('users.tier_2')}}"
+                           class="side-nav-link {{ request()->routeIs('users.tier_2') ? 'sidenav-active' : '' }}">
+                            <i class="uil-check-circle me-1"></i> Tier 2
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{route('users.tier_3')}}"
+                           class="side-nav-link {{ request()->routeIs('users.tier_3') ? 'sidenav-active' : '' }}">
+                            <i class="uil-check-circle me-1"></i> Tier 3
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Transaction Management Section -->
+        @if (!in_array(config('app.name'), $excludeTransactions))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['view user transactions', 'view all transactions', 'view pending transactions', 'view failed transactions', 'view successful transactions', 'view transaction reports'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarTransactions" aria-expanded="false"
+               aria-controls="sidebarTransactions" class="side-nav-link">
+                <i class="uil-exchange-alt"></i>
+                <span> Transaction Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarTransactions">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view user transactions'))
+                    <li>
+                        <a href="{{route('wallet-report')}}"
+                           class="side-nav-link {{ request()->routeIs('wallet-report') ? 'sidenav-active' : '' }}">User Transactions</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view all transactions'))
+                    <li>
+                        <a href="{{ route('all.transactions') }}"
+                           class="side-nav-link {{ request()->routeIs('all.transactions') ? 'sidenav-active' : '' }}">All Transactions</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view pending transactions'))
+                    <li>
+                        <a href="{{ route('pending.transactions') }}"
+                           class="side-nav-link {{ request()->routeIs('pending.transactions') ? 'sidenav-active' : '' }}">Pending Transactions</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view failed transactions'))
+                    <li>
+                        <a href="{{ route('failed.transactions') }}"
+                           class="side-nav-link {{ request()->routeIs('failed.transactions') ? 'sidenav-active' : '' }}">Failed Transactions</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view successful transactions'))
+                    <li>
+                        <a href="{{ route('successful.transactions') }}"
+                           class="side-nav-link {{ request()->routeIs('successful.transactions') ? 'sidenav-active' : '' }}">Successful Transfer</a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Cards Section -->
+        @if (!in_array(config('app.name'), $excludeCards))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['view fraudulent transaction reports'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarCards" aria-expanded="false"
+               aria-controls="sidebarCards" class="side-nav-link">
+                <i class="uil-credit-card"></i>
+                <span>Cards Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarCards">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view fraudulent transaction reports'))
+                    <li>
+                        <a href="{{ route('settings.index') }}"
+                           class="side-nav-link {{ request()->routeIs('settings.index') ? 'sidenav-active' : '' }}">
+                            <i class="ri-bank-card-line"></i>
+                            <span>Virtual Card Settings</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('naira-cards.index') }}"
+                           class="side-nav-link {{ request()->routeIs('naira-cards.*') ? 'sidenav-active' : '' }}">
+                            <i class="ri-bank-card-2-line"></i>
+                            <span>Naira Cards</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('naira-cards.transactions') }}"
+                           class="side-nav-link {{ request()->routeIs('naira-cards.transactions') ? 'sidenav-active' : '' }}">
+                            <i class="ri-exchange-funds-line"></i>
+                            <span>Card Transactions</span>
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Wallet Management Section -->
+        @if (!in_array(config('app.name'), $excludeWallet))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['view wallet overview', 'view wallet funding'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarWallet" aria-expanded="false"
+               aria-controls="sidebarWallet" class="side-nav-link">
+                <i class="uil-wallet"></i>
+                <span> Wallet Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarWallet">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view wallet overview'))
+                    <li>
+                        <a href="{{route('wallet-report')}}"
+                           class="side-nav-link {{ request()->routeIs('wallet-report') ? 'sidenav-active' : '' }}">Wallet Overview</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view wallet funding'))
+                    <li>
+                        <a href="{{route('wallet-funding')}}"
+                           class="side-nav-link {{ request()->routeIs('wallet-funding') ? 'sidenav-active' : '' }}">Wallet Funding</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view wallet funding'))
+                    <li>
+                        <a href="{{route('configure-payment')}}"
+                           class="side-nav-link {{ request()->routeIs('configure-payment') ? 'sidenav-active' : '' }}">Gateway Configuration</a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Airtime to Cash Records Section -->
+        @if (!in_array(config('app.name'), $excludeAirtimeToCash))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['view fraudulent transaction reports'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarAirtimeRecords" aria-expanded="false"
+               aria-controls="sidebarAirtimeRecords" class="side-nav-link">
+                <i class="uil-file-check"></i>
+                <span>Airtime to Cash</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarAirtimeRecords">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view fraudulent transaction reports'))
+                    <li>
+                        <a href="{{ route('airtime_to_cash') }}"
+                           class="side-nav-link {{ request()->routeIs('airtime_to_cash') ? 'sidenav-active' : '' }}">
+                            <i class="ri-exchange-dollar-line"></i>
+                            <span>Airtime to Cash</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('airtime_to_cash_records') }}"
+                           class="side-nav-link {{ request()->routeIs('airtime_to_cash_records') ? 'sidenav-active' : '' }}">
+                            <i class="ri-file-list-2-line"></i>
+                            <span>All Records</span>
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- GiftCards Records Section -->
+        @if (!in_array(config('app.name'), $excludeGiftCards))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasPermission('manage gift-cards')))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarGiftCards" aria-expanded="false"
+               aria-controls="sidebarGiftCards" class="side-nav-link">
+                <i class="uil-gift"></i>
+                <span>GiftCards</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarGiftCards">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage gift-cards'))
+                    <li>
+                        <a href="{{ route('gift-cards.listing') }}"
+                           class="side-nav-link {{ request()->routeIs('gift-cards.listing') ? 'sidenav-active' : '' }}">
+                            <i class="ri-gift-line"></i>
+                            <span>Available GiftCards Type</span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('gift-cards') }}"
+                           class="side-nav-link {{ request()->routeIs('gift-cards') ? 'sidenav-active' : '' }}">
+                            <i class="ri-file-list-2-line"></i>
+                            <span>All Records</span>
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Security & Transaction Monitoring Section -->
+        @if (!in_array(config('app.name'), $excludeSecurity))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view fraudulent transaction reports')))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarSecurity" aria-expanded="false"
+               aria-controls="sidebarSecurity" class="side-nav-link">
+                <i class="uil-shield-check"></i>
+                <span>Security & Monitoring</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarSecurity">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view fraudulent transaction reports'))
+                    <li>
+                        <a href="{{ route('wallet-transactions.fraud.checks') }}"
+                           class="side-nav-link {{ request()->routeIs('wallet-transactions.fraud.checks') ? 'sidenav-active' : '' }}">
+                            Fraudulent Reports
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- System Configuration Section -->
+        @if (!in_array(config('app.name'), $excludeSystemConfig))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view user transactions')))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarSystemConfig" aria-expanded="false"
+               aria-controls="sidebarSystemConfig" class="side-nav-link">
+                <i class="uil-cog"></i>
+                <span>System Configuration</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarSystemConfig">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view wallet funding'))
+                    <li>
+                        <a href="{{route('transaction.fee')}}"
+                           class="side-nav-link {{ request()->routeIs('transaction.fee') ? 'sidenav-active' : '' }}">Transaction Fee</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage settings'))
+                    <li>
+                        <a href="{{route('delivery.fee')}}"
+                           class="side-nav-link {{ request()->routeIs('delivery.fee') ? 'sidenav-active' : '' }}">Delivery Fee</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage settings'))
+                    <li>
+                        <a href="{{route('all.epin.rate')}}"
+                           class="side-nav-link {{ request()->routeIs('all.epin.rate') ? 'sidenav-active' : '' }}">E-Pin Rates</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view user transactions'))
+                    <li>
+                        <a href="{{route('dollar_rate')}}"
+                           class="side-nav-link {{ request()->routeIs('dollar_rate') ? 'sidenav-active' : '' }}">Set Dollar Rate</a>
+                    </li>
+                    @endif
+
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view user transactions'))
+                    <li>
+                        <a href="{{route('tier_settings')}}"
+                           class="side-nav-link {{ request()->routeIs('tier_settings') ? 'sidenav-active' : '' }}">Tier Settings</a>
+                    </li>
+
+                    <li>
+                        <a href="{{route('set_preferred_provider')}}"
+                           class="side-nav-link {{ request()->routeIs('set_preferred_provider') ? 'sidenav-active' : '' }}">Payment Gateway</a>
+                    </li>
+
+                    <li>
+                        <a href="{{route('set_payment_services')}}"
+                           class="side-nav-link {{ request()->routeIs('set_payment_services') ? 'sidenav-active' : '' }}">Set Payment Services</a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Support & Communication Section -->
+        @if (!in_array(config('app.name'), $excludeSupport))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasAnyPermission(['send announcements', 'view all announcements'])))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarSupport" aria-expanded="false"
+               aria-controls="sidebarSupport" class="side-nav-link">
+                <i class="uil-headphones"></i>
+                <span> Support & Communication</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarSupport">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('send announcements'))
+                    <li>
+                        <a href="{{ route('broadcast-message') }}"
+                           class="side-nav-link {{ request()->routeIs('broadcast-message') ? 'sidenav-active' : '' }}">
+                            Announcements
+                            <span class="badge bg-warning"></span>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('announcement') }}"
+                           class="side-nav-link {{ request()->routeIs('announcement') ? 'sidenav-active' : '' }}">
+                            In App Announcement
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Rewards Management Section -->
+        @if (!in_array(config('app.name'), $excludeRewards))
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view rewards')))
+        <li class="side-nav-item">
+            <a data-bs-toggle="collapse" href="#sidebarRewards" aria-expanded="false"
+               aria-controls="sidebarRewards" class="side-nav-link">
+                <i class="uil-gift"></i>
+                <span>Referral Management</span>
+                <span class="menu-arrow"></span>
+            </a>
+            <div class="collapse" id="sidebarRewards">
+                <ul class="side-nav-second-level pt-1">
+                    @if(Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view rewards'))
+                    <li>
+                        <a href="{{ route('rewards.index') }}"
+                           class="side-nav-link {{ request()->routeIs('rewards.index') ? 'sidenav-active' : '' }}">
+                            Dashboard
+                        </a>
+                    </li>
+                    @endif
+                </ul>
+            </div>
+        </li>
+        @endif
+        @endif
+
+        <!-- Banners -->
+        @if (!in_array(config('app.name'), $excludeBanners))
+        @if(Auth::guard('admin')->check() && (
+        Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasPermission('send announcements')
+        ))
+        <li class="side-nav-item">
+            <a href="{{ route('banners.index') }}"
+               class="side-nav-link {{ request()->routeIs('banners.index') ? 'sidenav-active' : '' }}">
+                <i class="ri-image-line"></i>
+                <span> Banners </span>
+            </a>
+        </li>
+        @endif
+        @endif
+
+        <!-- Esim -->
+        @if (!in_array(config('app.name'), $excludeEsim))
+        @if(Auth::guard('admin')->check() && (
+        Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasPermission('send announcements')
+        ))
+        <li class="side-nav-item">
+            <a href="{{ route('esim.settings.index') }}"
+               class="side-nav-link {{ request()->routeIs('esim.settings.index') ? 'sidenav-active' : '' }}">
+                <i class="ri-sim-card-line"></i>
+                <span> Esim </span>
+            </a>
+        </li>
+        @endif
+        @endif
+
+        <!-- Revenues -->
+        @if (!in_array(config('app.name'), $excludeRevenues))
+        @if(Auth::guard('admin')->check() && (
+        Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) ||
+        Auth::guard('admin')->user()->hasPermission('view revenues')
+        ))
+        <li class="side-nav-item">
+            <a href="{{ route('revenues.index') }}"
+               class="side-nav-link d-flex align-items-center {{ request()->routeIs('revenues.index') ? 'sidenav-active' : '' }}">
+                <i class="ri-bar-chart-2-line me-2"></i>
+                <span> Revenues </span>
+            </a>
+        </li>
+        @endif
+        @endif
+
+         <!-- Notifications -->
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('view notifications')))
+            <li class="side-nav-item">
+                <a href="{{ route('user.notification') }}"
+                   class="side-nav-link {{ request()->routeIs('user.notification') ? 'sidenav-active' : '' }}">
+                    <i class="ri-notification-line"></i>
+                    <span> Notifications </span>
+                </a>
+            </li>
+        @endif
+
+        <!-- Settings -->
+        @if(Auth::guard('admin')->check() && (Auth::guard('admin')->user()->hasRole(['super-admin', 'developer']) || Auth::guard('admin')->user()->hasPermission('manage settings')))
+            <li class="side-nav-item">
+                <a href="{{ route('user.settings') }}"
+                   class="side-nav-link {{ request()->routeIs('user.settings') ? 'sidenav-active' : '' }}">
+                    <i class="ri-settings-3-line"></i>
+                    <span> Settings </span>
+                </a>
+            </li>
+        @endif
+
+    </ul>
+
+    <div class="clearfix"></div>
+</div>
+

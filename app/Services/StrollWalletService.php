@@ -7,6 +7,7 @@ use App\Helpers\VirtualLogger;
 use App\Models\Settings;
 use App\Models\TransactionLog;
 use App\Models\User;
+use App\Models\UserVirtualCard;
 use App\Models\VirtualCard;
 use App\Models\Wallet;
 use Illuminate\Support\Facades\Auth;
@@ -30,9 +31,9 @@ class StrollWalletService
 
 
 
-    public function createCardUser(): array
+
+    public function createAccount(): array
     {
-        DB::beginTransaction();
         $user = Auth::user();
 
         try {
@@ -48,40 +49,74 @@ class StrollWalletService
                     'status_code' => $response['status_code'] ?? 400
                 ];
             }
+            $apiResponseData  = $this->saveUserVirtualData($response['data']['response']);
+            DB::commit();
+            return [
+                'success' => true,
+                'message' => 'Strowallet created successfully',
+                'data' => [
+                    'customer' => $apiResponseData,
+                ]
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            VirtualLogger::log('Error creating Strowallet card user or card',  ['error' => Utility::getExceptionDetails($e)]);
 
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'status_code' => 500
+            ];
+        }
+    }
 
-            $apiResponseData = $response['data']['response'] ?? [];
-            $this->storeVirtualCard($userData, $apiResponseData);
+    public function createCard($data): array
+    {
 
+        $user = Auth::user();
+        $wallet = $user->wallet()->first();
+        $balanceBefore = $wallet->amount;
+        if ($balanceBefore < $data['cost']) {
+            return [
+                'success' => false,
+                'message' => 'Insufficient funds',
+                'data' => [],
+                'status_code' => 400
+            ];
+        }
+
+        DB::beginTransaction();
+
+        try {
             $cardResponse = $this->createVirtualCard([
-                'name_on_card' => $apiResponseData['name_on_card'] ?? $user->first_name . ' ' . $user->last_name,
-                'card_type'    => $apiResponseData['card_type'] ?? 'visa'
+                'name_on_card' => $user->first_name . ' ' . $user->last_name,
+                'card_type'    => 'visa'
             ]);
-            $this->updateVirtualCardWithApiResponse($cardResponse, $user);
 
-            if (!$cardResponse['success']) {
+            if (empty($cardResponse['success']) || $cardResponse['success'] === false) {
                 DB::rollBack();
                 return [
                     'success' => false,
                     'message' => $cardResponse['message'] ?? 'Failed to create card',
                     'status_code' => 400
                 ];
-
             }
 
-            DB::commit();
+         #   Wallet::remove_From_wallet($data['cost']);
+            $this->logTransaction($user, $data['cost'], $data, $balanceBefore);
+            $this->createVirtualCardFromApiResponse($cardResponse, $user);
 
+            DB::commit();
             return [
                 'success' => true,
-                'message' => 'Strowallet card user and card created successfully',
+                'message' => 'Strowallet card created successfully',
                 'data' => [
-                    'customer' => $apiResponseData,
-                    'card' => $cardResponse['data']['response'] ?? []
+                    'card' => $cardResponse['data'] ?? []
                 ]
             ];
         } catch (\Exception $e) {
             DB::rollBack();
-           VirtualLogger::log('Error creating Strowallet card user or card',  ['error' => Utility::getExceptionDetails($e)]);
+            VirtualLogger::log('Error creating Strowallet card user or card',  ['error' => Utility::getExceptionDetails($e)]);
 
             return [
                 'success' => false,
@@ -92,10 +127,70 @@ class StrollWalletService
     }
 
 
+
+
+    public  function updateCardCustomer($data)
+    {
+        $user = Auth::user();
+        $document = $this->getUserDocumentDetails($user);
+
+        try {
+            $payload = [
+                'public_key'  => $this->publicKey,
+                'customerId'  => $user->kyc->customerId,
+                'firstName'   => $user->first_name,
+                'lastName'    => $user->last_name,
+                'idImage'     => $document['idImage'] ?? '',
+                'userPhoto'   => $document['selfie_image'] ?? '',
+                'phoneNumber' => $user->phone ?? '',
+                'country'     => $user->country ?? '',
+                'city'        => $user->city ?? '',
+                'state'       => $user->state ?? '',
+                'zipCode'     => $user->zip_code ?? '',
+                'line1'       => $document['address'] ?? '',
+                'houseNumber' => $document['address'] ?? '12',
+            ];
+
+            return $this->makeApiCall('/bitvcard/updateCardCustomer/', $payload, 'PUT');
+
+        } catch (\Exception $e) {
+            VirtualLogger::log('Error updating card customer', ['error' => $e->getMessage()]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+
+    private function logTransaction($user, float $amount, $data,$amountBefore): void
+    {
+        $wallet = $user->wallet()->first();
+        $amountAfter = $wallet->fresh()->amount;
+
+        TransactionLog::create([
+            'user_id' => $user->id,
+            'wallet_id' => $wallet->id,
+            'type' => 'debit',
+            'amount' => $amount,
+            'amount_before' => $amountBefore,
+            'amount_after' => $amountAfter,
+            'transaction_reference' => Utility::txRef("virtual", "system"),
+            'service_type' => 'virtual_card',
+            'status' => 'successful',
+            'provider' => 'system',
+            'channel' => 'Internal',
+            'currency' => 'NGN',
+            'description' => "Card Creation and fund payment",
+            'payload' => $data
+        ]);
+    }
+
+
     public function createVirtualCard(array $cardData = null): array
     {
         $user = auth()->user();
-        $kycCard = $user->virtual_cards->first();
+        $kycCard = $user->virtual_cards;
 
         if (!$kycCard) {
             return [
@@ -106,18 +201,15 @@ class StrollWalletService
         }
 
         $payload = [
-            'name_on_card'   => $cardData['name_on_card'] ?? $user->first_name . ' ' . $user->last_name,
+            'name_on_card'   => $cardData['name_on_card'],
             'card_type'      => $cardData['card_type'] ?? 'visa',
             'public_key'     => $this->publicKey,
             'amount'         => 3,
             'customerEmail'  => $user->email,
             'mode'           => 'sandbox'
         ];
-
         $endpoint = '/bitvcard/create-card/';
         $response = $this->makeApiCall($endpoint, $payload, 'POST');
-
-
         if ($response['success']) {
             return [
                 'success' => true,
@@ -129,25 +221,31 @@ class StrollWalletService
         return [
             'success' => false,
             'message' => $response['message'] ?? 'An error occurred during card creation',
-            'data' => $response['errors'] ?? [],
+            'data' => $response
         ];
     }
 
 
-
-    private function updateVirtualCardWithApiResponse(array $data, User $user): void
+    public function changeEnvironment(): string
     {
-        $card = VirtualCard::where('user_id', $user->id)
-            ->where('provider', 'strowallet')
-            ->latest()
-            ->first();
+        $env = app()->environment(); // gets 'local', 'production', etc.
 
-        // Navigate safely to response
+        if ($env === 'local') {
+            return 'sandbox';
+        }
+
+        return 'live';
+    }
+
+
+    private function createVirtualCardFromApiResponse(array $data, User $user): void
+    {
         $cardResponseData = $data['data']['data']['response'] ?? [];
 
-        if ($card && !empty($cardResponseData)) {
-            $card->update([
-                'card_id'           => $cardResponseData['card_id'],
+        if (!empty($cardResponseData)) {
+            UserVirtualCard::create([
+                'user_id'           => $user->id,
+                'card_id'           => $cardResponseData['card_id'] ?? null,
                 'card_status'       => $cardResponseData['card_status'] ?? null,
                 'name'              => $cardResponseData['name_on_card'] ?? null,
                 'brand'             => $cardResponseData['card_brand'] ?? null,
@@ -155,7 +253,8 @@ class StrollWalletService
                 'reference'         => $cardResponseData['reference'] ?? null,
                 'customer_id'       => $cardResponseData['customer_id'] ?? null,
                 'provider_user_id'  => $cardResponseData['card_user_id'] ?? null,
-                'api_response'      => json_encode($cardResponseData),
+                'api_response'      => $cardResponseData,
+                'created_at'        => now(),
                 'updated_at'        => now(),
             ]);
         }
@@ -163,27 +262,27 @@ class StrollWalletService
 
 
 
-
-    protected function storeVirtualCard(array $userData, array $apiResponse): VirtualCard
+    protected function saveUserVirtualData(array $userData): VirtualCard
     {
         return VirtualCard::create([
-            'first_name' => $apiResponse['firstName'] ?? $userData['firstName'],
-            'last_name' => $apiResponse['lastName'] ?? $userData['lastName'],
-            'email' => $apiResponse['customerEmail'] ?? $userData['customerEmail'],
-            'phone' => $apiResponse['phoneNumber'] ?? $userData['phoneNumber'],
-            'country' => $apiResponse['country'] ?? $userData['country'],
-            'state' => $apiResponse['state'] ?? $userData['state'],
-            'city' => $apiResponse['city'] ?? $userData['city'],
+            'first_name' =>  $userData['firstName'],
+            'last_name' =>  $userData['lastName'],
+            'email' =>  $userData['customerEmail'],
+            'phone' =>  $userData['phoneNumber'],
+            'country' =>  $userData['country'],
+            'state' =>  $userData['state'],
+            'city' =>  $userData['city'],
             'provider' => 'strowallet',
             'type' => 'strowallet',
-            'address' => $apiResponse['line1'] ?? $userData['line1'],
-            'zip_code' => $apiResponse['zipCode'] ?? $userData['zipCode'],
-            'id_type' => $apiResponse['idType'] ?? $userData['idType'],
-            'id_number' => $apiResponse['idNumber'] ?? $userData['idNumber'],
+            'address' => $userData['line1'],
+            'zip_code' => $userData['zipCode'],
+            'id_type' =>  $userData['idType'],
+            'id_number' => $userData['idNumber'],
             'user_id' => Auth::id(),
-            'provider_user_id' => $apiResponse['customerId'] ?? null,
-            'card_status' => null,
-            'api_response' => $apiResponse,
+            'provider_user_id' => $userData['customerId'],
+            'customerId' => $userData['customerId'],
+            'card_status' => "null",
+            'api_response' => null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -192,61 +291,22 @@ class StrollWalletService
 
 
 
-    /**
-     * Get sample Strowallet API response
-     *
-     * @return array
-     */
-    public function getSampleStrowalletResponse(): array
-    {
-        return [
-            "success" => true,
-            "data" => [
-                "success" => true,
-                "message" => "successfully registered user",
-                "response" => [
-                    "bvn" => "22035074465",
-                    "customerEmail" => "billyhadiattaofeeq@gmail.com",
-                    "firstName" => "ROBERT",
-                    "lastName" => "OGUNDIRAN",
-                    "phoneNumber" => "2348117283226",
-                    "city" => "Ikeja",
-                    "state" => "Lagos",
-                    "country" => "NIGERIA",
-                    "line1" => "Ikeja,Nigeria",
-                    "zipCode" => "100001",
-                    "houseNumber" => "12",
-                    "idNumber" => "22547614959",
-                    "idType" => "PASSPORT",
-                    "idImage" => "https://images.dojah.io/image_68ae310659d05e0047a59d83id_1756246347.jpg",
-                    "userPhoto" => "https://example.com/selfie.jpg",
-                    "customerId" => "643d44c1-e128-4663-954b-5c0b19ddf6df",
-                    "dateOfBirth" => "1996-07-28"
-                ]
-            ],
-            "status_code" => 200
-        ];
-    }
-
     private function getVirtualUserPayload($user): array
     {
         $kyc = $user->kyc;
         $document = $this->getUserDocumentDetails($user);
-
         return [
             'public_key'    => $this->publicKey,
             'firstName'     => $user->first_name,
             'lastName'      => $user->last_name,
-//            'idNumber'      => $user->kyc->bvn ?? $user->kyc->nin,
-              "idNumber"  =>  random_int(1000000000, 9999999999),
-              'idType'        => "passport",
-            'customerEmail' =>  $this->generateRandomEmail(),
+            'idNumber'      => $document['idNumber'],
+            'idType'        => $document['idType'],
+            'customerEmail' =>  $user->email,
             'phoneNumber'   => $this->validatePhoneNumber($user->phone),
             'dateOfBirth'   => $kyc->dob ,
-//            'idImage'       => $document['idImage'],
-              'idImage'       =>   "https://example.jpeg",
+            'idImage'       => $document['idImage'],
             'userPhoto'     => $document['selfie_image'],
-            'line1'         => $kyc->address ?? 'Address Line',
+            'line1'         => $document['address'],
             'houseNumber'   => $kyc->house_number ?? '12',
             'state'         => $kyc->state ?? 'Lagos',
             'zipCode'       => $kyc->postal_code ?? '100001',
@@ -254,12 +314,6 @@ class StrollWalletService
             'country'       => "NIGERIA"
         ];
     }
-
-
-
-
-
-
 
     public function generateRandomEmail(): string
     {
@@ -292,39 +346,41 @@ class StrollWalletService
     {
         $type = $user->kyc->verification_type ?? null;
         $documentId = $user->kyc->verification_value ?? null;
-        $documentType = $type === "NG-NIN-SLIP"
-            ? "NIN"
-            : "Passport";
+
+        $documentType = match ($type) {
+            'NG-NIN-SLIP' => 'NIN',
+            'PASSPORT_ID' => 'Passport',
+            default => 'Unknown',
+        };
 
         return [
             'idNumber' => $documentId,
             'idType'   => $documentType,
             'idImage'  => $user->kyc->id_image_url,
-            'selfie_image' => $user->kyc->selfie_image_url ?? 'https://example.com/selfie.jpg',
+            'selfie_image' => $user->kyc->selfie ?? $user->kyc->selfie_image,
+            'address'  => $user->kyc->address ?? "Lagos Nigeria"
 
         ];
     }
 
 
-
-
     public function getVirtualCardCustomer(): array
     {
         $user = auth()->user();
-        $kycCard = $user->virtual_cards->first();
-
+        $kycCard = $user->virtual_card;
         if (!$kycCard) {
             return [
                 'success' => false,
                 'message' => 'No Strowallet card found for user',
                 'data' => [],
             ];
-        }
+        } ;
         $queryParams = [
-            'customerId'    => $kycCard->provider_user_id,
-            'customerEmail' => $user->email,
+            'customerId'    => $kycCard->customerId,
+            'customerEmail' => $kycCard->email,
             'public_key'    => $this->publicKey,
         ];
+
         $endpoint = '/bitvcard/getcardholder/';
         $response = $this->makeApiCall($endpoint . '?' . http_build_query($queryParams), [], 'GET');
 
@@ -332,7 +388,10 @@ class StrollWalletService
             return [
                 'success' => true,
                 'message' => 'Customer details fetched successfully.',
-                'data' => $response['data']['data'],
+                'data' => [
+                    'customer_data' =>  $response['data']['data'],
+                    'card_details'  => $user->virtual_cards,
+                ],
             ];
         }
 
@@ -352,7 +411,7 @@ class StrollWalletService
         $queryParams = [
             'public_key' => $this->publicKey,
             'card_id'    => $cardId,
-            'mode'       => 'sandbox' // Optional for live mode
+             'mode'       => 'sandbox' // Optional for live mode
         ];
 
         $endpoint = '/bitvcard/fetch-card-detail/';
@@ -369,7 +428,6 @@ class StrollWalletService
                 'data'    => $response['data']['response']['card_detail'],
             ];
         }
-
         return [
             'success' => false,
             'message' => $response['message'] ?? 'Failed to fetch card details.',
@@ -385,7 +443,7 @@ class StrollWalletService
         $queryParams = [
             'public_key' => $this->publicKey,
             'card_id'    => $cardId,
-            'mode'       => 'sandbox' // Optional: remove in production
+             'mode'       => 'sandbox' // Optional: remove in production
         ];
 
         $endpoint = '/bitvcard/card-transactions/';
@@ -414,57 +472,70 @@ class StrollWalletService
     {
         DB::beginTransaction();
         try {
-            $conversionRate = Settings::get('dollar_conversion_rate', 0);
-            if ($conversionRate < 1) {
-                throw new \Exception('Dollar conversion rate is not properly configured.');
-            }
-
+            $conversionRate = Settings::get('dollar_conversion_rate', 1500);
             $amountInUSD = $validated['amount'];
             $amountInNGN = $amountInUSD * $conversionRate;
 
-            # Check balance
+            // Check balance
             $walletBalance = Wallet::check_balance();
             if ($walletBalance < $amountInNGN) {
-                throw new \Exception('Insufficient wallet balance for this transaction.');
+                return [
+                    'success' => false,
+                    'message' => 'Insufficient wallet balance for this transaction',
+                    'data'    => [],
+                ];
             }
 
-            # Make API call BEFORE deducting from wallet
             $userData = $this->getFundingPayload($validated);
             $response = $this->makeApiCall('/bitvcard/fund-card/', $userData);
-            if (!$response['success']) {
-                throw new \Exception($response['message'] ?? 'Card funding failed');
+
+            # Handle failed API response
+            if (!$response['success'] || $response['success'] != true) {
+                return [
+                    'success' => false,
+                    'message' => $response['message'] ?? 'Card funding failed',
+                    'data'    => [],
+                ];
             }
 
-            # Only deduct from wallet after successful API call
-            $newBalance = Wallet::remove_From_wallet($amountInNGN);
+            $apiData = $response['data']['apiresponse']['data'] ?? [];
+            $apiMessage = $response['data']['apiresponse']['message'] ?? 'Card funding processed';
+            $apiStatus = $apiData['status'] ?? 'pending';
 
-            # Log the transaction
+            #$newBalance = Wallet::remove_From_wallet($amountInNGN);
+
             $user = Auth::user();
             $wallet = Wallet::where('user_id', $user->id)->first();
+
             TransactionLog::create([
                 'user_id' => $user->id,
                 'wallet_id' => $wallet->id,
                 'type' => 'debit',
                 'category' => 'virtual_card_funding',
                 'amount' => $amountInNGN,
-                'transaction_reference' => Utility::txRef("virtual", "virtual_card"),
+                'transaction_reference' => $apiData['reference'] ?? 0,
                 'service_type' => 'virtual_card',
                 'amount_before' => $walletBalance,
-                'amount_after' => $newBalance,
-                'status' => 'pending',
-                'provider' => 'system',
-                'channel' => 'internal',
+                'amount_after' => $newBalance ?? 0,
+                'status' => $apiStatus, // Sync Strowallet status (e.g. pending, success)
+                'provider' => 'strowallet',
+                'channel' => 'api',
                 'currency' => 'NGN',
                 'description' => "Funded virtual card with \${$amountInUSD} (₦" . number_format($amountInNGN, 2) . ")",
                 'provider_response' => json_encode($response),
-                'payload' => json_encode($validated),
+                'payload' => $validated,
             ]);
 
             DB::commit();
 
             return [
                 'success' => true,
-                'message' => 'Transaction successful',
+                'message' => $apiMessage,
+                'data' => [
+                    'status' => $apiStatus,
+                    'card_id' => $apiData['cardId'] ?? null,
+                    'narrative' => $apiData['narrative'] ?? null,
+                ],
             ];
 
         } catch (\Exception $e) {
@@ -473,18 +544,19 @@ class StrollWalletService
 
             return [
                 'success' => false,
-                'message' => $e->getMessage(),
-                'status_code' => 500
+                'message' => 'An unexpected error occurred: ' . $e->getMessage(),
+                'status_code' => 500,
             ];
         }
     }
+
 
 
     private function getFundingPayload($data): array
     {
         return [
             'card_id'     => $data['card_id'],
-            'amount'      => $data['amount'],  // required!
+            'amount'      => $data['amount'],
             'public_key'  => $this->publicKey,
             'mode'        => "sandbox",
         ];
@@ -537,55 +609,68 @@ class StrollWalletService
     public function processCardWithdrawal(array $validated): array
     {
         DB::beginTransaction();
+
         try {
-            $amountInUSD = $validated['amount'];
-            $conversionRate = Settings::get('dollar_conversion_rate', 0);
-            if ($conversionRate < 1) {
-                throw new \Exception('Dollar conversion rate is not properly configured.');
-            }
-
-            $amountInNGN = $amountInUSD * $conversionRate;
-
-            $payload = [
-                'card_id'     => $validated['card_id'],
-                'amount'      => $amountInUSD,
-                'public_key'  => $this->publicKey,
-            ];
-
-            $response = $this->makeApiCall('/bitvcard/card_withdraw/', $payload, 'POST');
-
-            if (!$response['success']) {
-                throw new \Exception($response['message'] ?? 'Card withdrawal failed');
-            }
-
-            // Log the withdrawal as pending – wait for webhook to confirm
             $user = Auth::user();
             $wallet = Wallet::where('user_id', $user->id)->first();
 
+            $amountInUSD = $validated['amount'];
+            $conversionRate = Settings::get('dollar_conversion_rate', 1500);
+            $amountInNGN = $amountInUSD * $conversionRate;
+
+            $payload = [
+                'card_id'    => $validated['card_id'],
+                'amount'     => $validated['amount'],
+                'public_key' => $this->publicKey,
+            ];
+
+            $queryString = http_build_query($payload);
+            $endpoint = '/bitvcard/card_withdraw/?' . $queryString;
+
+            $response = $this->makeApiCall($endpoint, [], 'POST');
+
+            if (empty($response['success']) || $response['success'] === false) {
+                return [
+                    'success' => false,
+                    'message' => $response['message'] ?? 'Card withdrawal failed',
+                    'data' => [
+                        'api_response' => $response['data'] ?? [],
+                    ],
+                    'status_code' => $response['status_code'] ?? 400,
+                ];
+            }
+
             TransactionLog::create([
-                'user_id' => $user->id,
-                'wallet_id' => $wallet->id,
-                'type' => 'credit', // Wallet will be credited when webhook confirms
-                'category' => 'virtual_card_withdrawal',
-                'amount' => $amountInNGN,
-                'transaction_reference' => Utility::txRef("virtual", "virtual_card"),
-                'service_type' => 'virtual_card',
-                'amount_before' => $wallet->balance,
-                'amount_after' => $wallet->balance, // Still unchanged
-                'status' => 'pending', // Will change to successful when webhook confirms
-                'provider' => 'system',
-                'channel' => 'internal',
-                'currency' => 'NGN',
-                'description' => "Requested withdrawal of \${$amountInUSD} (₦" . number_format($amountInNGN, 2) . ") from virtual card",
-                'provider_response' => json_encode($response),
-                'payload' => json_encode($validated),
+                'user_id'               => $user->id,
+                'wallet_id'             => $wallet->id,
+                'type'                  => 'credit', // will credit when confirmed
+                'category'              => 'virtual_card_withdrawal',
+                'amount'                => $amountInNGN,
+                'transaction_reference' => Utility::txRef("virtual", "withdrawal"),
+                'service_type'          => 'virtual_card',
+                'amount_before'         => $wallet->amount,
+                'amount_after'          => $wallet->amount, // unchanged until webhook
+                'status'                => 'pending', // waiting for webhook
+                'provider'              => 'strowallet',
+                'channel'               => 'internal',
+                'currency'              => 'NGN',
+                'description'           => "Withdrawal of \${$amountInUSD} (₦" . number_format($amountInNGN, 2) . ") from virtual card requested.",
+                'provider_response'     => json_encode($response),
+                'payload'               => $validated,
             ]);
 
             DB::commit();
 
             return [
                 'success' => true,
-                'message' => 'Withdrawal request submitted successfully. Awaiting confirmation.',
+                'message' => $response['data']['message'] ?? 'Withdrawal initiated successfully. Awaiting confirmation.',
+                'data'    => [
+                    'withdrawal_status' => $response['data']['data']['status'] ?? 'pending',
+                    'transaction_ref'   => $response['data']['data']['reference'] ?? null,
+                    'amount_usd'        => $amountInUSD,
+                    'amount_ngn'        => $amountInNGN,
+                ],
+                'status_code' => 200,
             ];
 
         } catch (\Exception $e) {
@@ -595,13 +680,131 @@ class StrollWalletService
             return [
                 'success' => false,
                 'message' => $e->getMessage(),
+                'data' => [Utility::getExceptionDetails($e)],
                 'status_code' => 500
             ];
         }
     }
 
 
-# Funding a Virtual Card This means the user is moving money from their wallet (in your app) into their virtual card balance.
-# Withdrawal from a Virtual Card
+
+    public function getVirtualSettings(): array
+    {
+        return [
+            'virtual_card_topup_fee'     => number_format((float) Settings::get('virtual_card_topup_fee', 0), 2, '.', ''),
+            'virtual_card_creation_fee'  => number_format((float) Settings::get('virtual_card_creation_fee', 0), 2, '.', ''),
+            'virtual_card_account_fee'   => number_format((float) Settings::get('virtual_card_account_fee', 0), 2, '.', ''),
+            'dollar_conversion_rate'   => Settings::get('dollar_conversion_rate', 1500),
+        ];
+    }
+
+
+    public function processCardUnFreezing(array $validated): array
+    {
+        // Default action to 'freeze' if not provided
+        $action = $validated['action'] ?? 'freeze';
+        DB::beginTransaction();
+
+        $queryParams = http_build_query([
+            'action'     => $action,
+            'card_id'    => $validated['card_id'],
+            'public_key' => $this->publicKey,
+        ]);
+        $endpoint = '/bitvcard/action/status/?' . $queryParams;
+        $response = $this->makeApiCall($endpoint, [], 'POST');
+
+        if (!empty($response['success']) && $response['success'] === true) {
+            DB::commit();
+            return [
+                'success' => true,
+                'message' => $response,
+            ];
+        }
+
+        DB::rollBack();
+
+        return [
+            'success' => false,
+            'message' => $response['message'] ?? 'Failed to process card action',
+            'status_code' => $response['status_code'] ?? 400
+        ];
+    }
+
+
+    public function syncCardWithdrawalStatus(string $reference): array
+    {
+        try {
+            $payload = [
+                'public_key' => $this->publicKey,
+                'reference'  => $reference,
+            ];
+
+            $query = http_build_query($payload);
+            $endpoint = '/bitvcard/getcard_withdrawstatus/?' . $query;
+
+            $response = $this->makeApiCall($endpoint, [], 'GET');
+
+            if (empty($response['success']) || $response['success'] === false) {
+                return [
+                    'success' => false,
+                    'message' => $response['message'] ?? 'Unable to fetch withdrawal status',
+                    'data'    => $response,
+                    'status_code' => 400,
+                ];
+            }
+
+            $withdrawStatus = strtolower($response['data']['status'] ?? 'pending');
+
+            $transaction = TransactionLog::where('transaction_reference', $reference)->first();
+            if (!$transaction) {
+                return [
+                    'success' => false,
+                    'message' => 'Transaction not found',
+                    'data' => [],
+                    'status_code' => 404,
+                ];
+            }
+
+            $wallet = Wallet::find($transaction->wallet_id);
+
+            $newStatus = match ($withdrawStatus) {
+                'approved', 'success', 'completed' => 'completed',
+                'failed', 'declined' => 'failed',
+                default => 'pending',
+            };
+
+            if ($newStatus === 'completed' && $wallet) {
+                $wallet->increment('amount', $transaction->amount);
+            }
+
+            $transaction->update([
+                'status' => $newStatus,
+                'provider_response' => json_encode($response),
+                'amount_after' => $wallet ? $wallet->amount : $transaction->amount_after,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => "Withdrawal status synced successfully.",
+                'data' => [
+                    'status' => $newStatus,
+                    'reference' => $reference,
+                ],
+                'status_code' => 200,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error syncing withdrawal status: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => [],
+                'status_code' => 500,
+            ];
+        }
+    }
+
+
 
 }

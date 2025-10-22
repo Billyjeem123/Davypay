@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('phone', 20);  // Typical phone number length
             $table->string('country', 2);
             $table->string('state');
+            $table->string('customerId')->nullable();
             $table->string('city');
             $table->string('provider')->nullable();
             $table->text('address');

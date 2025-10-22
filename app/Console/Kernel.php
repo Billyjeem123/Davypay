@@ -13,6 +13,17 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
+
+//        $schedule->command('referrals:process-rewards')
+//            ->dailyAt('00:00')
+//            ->withoutOverlapping()
+//            ->runInBackground();
+
+        $schedule->command('referrals:process-rewards')
+            ->twiceDaily(0, 12)
+            ->withoutOverlapping()
+            ->runInBackground();
+
     }
 
     /**

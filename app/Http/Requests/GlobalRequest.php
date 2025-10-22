@@ -53,26 +53,89 @@ class GlobalRequest extends FormRequest
 
 
             case "verifyTransaction":
+            case "withdrawalStatus":
                 $rules = [
                     'reference'          => 'required',
                 ];
                 break;
 
 
+            case "getCost":
+                $rules = [
+                    'numbers'  => 'required|array',
+                ];
+                break;
+
             case "fundBettingAccount":
                 $rules = [
                     'product' => 'required|string',
                     'customer_id' => 'required|string',
-                    'amount' => 'required|numeric|min:100', # Minimum betting amount
+                    'amount' => 'required|numeric|min:100',
                     'phone_no' => 'required|string',
                 ];
                 break;
+
+
+
+            case "sendAnnouncement":
+                $rules = [
+                    'message.required' => ' message is required.',
+                ];
+                break;
+
+
+            case "createCard":
+                $rules = [
+                    'cost' => 'required',
+                ];
+                break;
+
+            case "updateCardDetails":
+                $rules = [
+                    'customerId' => ['required', 'string'],
+                    'firstName'  => ['sometimes', 'string', 'max:100'],
+                    'lastName'   => ['sometimes', 'string', 'max:100'],
+                    'idImage'    => ['nullable', 'string'], // could be base64 or a file URL
+                    'userPhoto'  => ['nullable', 'string'], // could be base64 or a file URL
+                    'phoneNumber'=> ['sometimes', 'string', 'max:20'],
+                    'country'    => ['sometimes', 'string', 'max:100'],
+                    'city'       => ['sometimes', 'string', 'max:100'],
+                    'state'      => ['sometimes', 'string', 'max:100'],
+                    'zipCode'    => ['nullable', 'string', 'max:20'],
+                    'line1'      => ['sometimes', 'string', 'max:150'],
+                    'houseNumber'=> ['nullable', 'string', 'max:50'],
+                ];
+                break;
+
+
+
 
             case "LoginWithPin":
                 $rules = [
                     'pin'          => 'required|digits:4',
                     "email"      => "required|email",
                     "device_token" => "required",
+                ];
+                break;
+
+
+            case "createEsim":
+                $rules = [
+                    'productId' => 'required|string',
+                    'iso3' => 'required|string|size:3',
+                    "platform_markup" => 'nullable',
+                    'provider_cost' => 'nullable',
+                    "total_cost"   => 'nullable'
+                ];
+                break;
+
+
+            case "saveServiceCharges":
+                $rules = [
+                    'services' => 'required|array|min:1',
+                    'services.*.type' => 'required|string',
+                    'services.*.rate' => 'required|numeric|min:1',
+                    '_token'   => 'nullable'
                 ];
                 break;
 
@@ -85,12 +148,37 @@ class GlobalRequest extends FormRequest
                 break;
 
 
+            case "sendSMS":
+                $rules = [
+                    'transaction_pin' => 'required|string',
+                    "campaign_name" => 'required|string',
+                    'numbers' => 'required|array|min:1',
+                    'message' => 'required|string',
+                    'sender_id' => 'required|string',
+                    'cost' => 'required'
+                ];
+                break;
+
+
             case "updateProfileImage":
                 $rules = [
                     'image' => 'required',
                 ];
                 break;
 
+
+            case "getServiceCharge":
+                $rules = [
+                    'service' => 'required',
+                ];
+                break;
+
+
+            case "getServiceCharge":
+                $rules = [
+                    'service' => 'required',
+                ];
+                break;
 
 
             case "buy_international_airtime":
@@ -134,6 +222,14 @@ class GlobalRequest extends FormRequest
             case "saveToken":
                 $rules = [
                     'device_token' => 'required'
+                ];
+                break;
+
+
+            case "getDataPlans":
+                $rules = [
+                    'country' => 'nullable|string',
+                    'type' => 'nullable|string|in:LOCAL,REGION'
                 ];
                 break;
 
@@ -386,8 +482,10 @@ class GlobalRequest extends FormRequest
             case "FreezeACard":
             case "terminateACard":
             case "UnFreezeACard":
+            case "freezeUnFreezeCard":
                 $rules = [
                     'card_id' => "required",
+                    'action' => 'nullable|in:freeze,unfreeze'
                 ];
                 break;
 
@@ -517,7 +615,7 @@ class GlobalRequest extends FormRequest
     {
         $inputParams = array_keys($this->all());
         $allowedParams = array_keys($rules);
-        $allowedExtraParams = ['per_page', 'page', 'search', 'token', 'image', 'transaction_pin'];
+        $allowedExtraParams = ['per_page', 'page', 'search', 'token', 'image', 'transaction_pin', 'token'. '_token'];
         $extraParams = array_diff($inputParams, $allowedParams, $allowedExtraParams);
         if (!empty($extraParams)) {
             foreach ($extraParams as $extraParam) {

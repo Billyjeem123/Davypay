@@ -22,7 +22,6 @@ class HandlePushNotification
      */
     public function handle(PushNotificationEvent $event)
     {
-        \Log::error('sent');
         dispatch(new SendPushNotificationJob(
             $event->user,
             $event->title,

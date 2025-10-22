@@ -159,6 +159,28 @@ return [
             'path' => storage_path('logs/virtual.log'),
             'level' => 'info'
         ],
+
+        'usdt' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/usdt.log'),
+            'level' => 'info',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'flight' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/flight.log'),
+            'level' => 'info',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
+        'esim' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/esim.log'),
+            'level' => 'info'
+        ],
     ],
 
 ];

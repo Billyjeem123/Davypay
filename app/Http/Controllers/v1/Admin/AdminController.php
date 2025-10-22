@@ -8,7 +8,12 @@ use App\Http\Requests\GlobalRequest;
 use App\Http\Requests\PreferredProviderRequest;
 use App\Http\Requests\UpdateTierRequest;
 use App\Models\Admin;
+use App\Models\Announcement;
+use App\Models\DeliveryFee;
 use App\Models\FraudCheck;
+use App\Models\GiftCard;
+use App\Models\GiftCardList;
+use App\Models\PaymentServiceCharges;
 use App\Models\Settings;
 use App\Models\Tier;
 use App\Models\TransactionFee;
@@ -25,6 +30,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use function Ramsey\Uuid\v1;
 
 class AdminController extends Controller
 {
@@ -108,7 +114,7 @@ class AdminController extends Controller
 
     public function UserFullInformation($user_id)
     {
-        $user = User::with('kyc', 'activity_logs', 'virtual_accounts', 'virtual_cards', 'wallet')->find($user_id);
+        $user = User::with('kyc', 'activity_logs', 'virtual_accounts', 'virtual_cards', 'wallet','usdtWallet')->find($user_id);
 
         if (!$user) {
             abort(404, 'User not found');
@@ -293,9 +299,6 @@ class AdminController extends Controller
 
 
 
-
-
-
     public function allTransactions(){
 
         $stats = $this->getAllTransactionStats();
@@ -309,8 +312,29 @@ class AdminController extends Controller
         $fees = TransactionFee::all();
         return view('dashboard.transactions.transaction-fee', compact('fees'));
     }
+    public function getDeliveryFees()
+    {
+        $fees = DeliveryFee::all();
+        return view('dashboard.transactions.delivery-fee', compact('fees'));
+    }
 
+    public function getGiftCardListing()
+    {
+        $listing = GiftCardList::all();
+        return view('dashboard.giftCard.giftcard-list', compact('listing'));
+    }
 
+    public function getGiftCards()
+    {
+        $giftCards = GiftCard::with(['user', 'type'])->latest()->get();
+        return view('dashboard.giftCard.index', compact('giftCards'));
+    }
+
+    public function show($id)
+    {
+        $giftCard = GiftCard::with(['user', 'type'])->findOrFail($id);
+        return view('dashboard.giftCard.show', compact('giftCard'));
+    }
 
     private function getAllTransactionStats()
     {
@@ -984,6 +1008,99 @@ class AdminController extends Controller
         }
     }
 
+    public  function getPaymentServices()
+    {
+        $charges = PaymentServiceCharges::all();
+        return view('dashboard.transactions.set_payment_service', compact('charges'));
+
+    }
+
+    public function saveServiceCharges(GlobalRequest $request)
+    {
+       $validated = $request->validated();
+        foreach ($validated['services'] as $service) {
+            PaymentServiceCharges::updateOrCreate(
+                ['services' => $service['type']],
+                ['amount' => $service['rate']]
+            );
+        }
+
+        return back()->with('success', 'Payment service rates saved successfully.');
+    }
+
+
+    public function deleteServiceCharge($id)
+    {
+        try {
+            $charge = PaymentServiceCharges::findOrFail($id);
+            $charge->delete();
+
+            return redirect()->back()->with('success', 'Service charge deleted successfully.');
+        } catch (\Exception $e) {
+            Log::error('Error deleting payment service charge: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to delete service charge.');
+        }
+    }
+
+
+
+    /**
+     * Display the emergency notification page
+     */
+    public function allAnnoucement()
+    {
+        $announcement = Announcement::get();
+        return view('dashboard.notification.announcement', compact('announcement'));
+    }
+
+    /**
+     * Send emergency notification to all users
+     */
+
+    public function sendAnnouncement(Request $request)
+    {
+        try {
+            $announcement = Announcement::first();
+
+            if ($announcement) {
+                $announcement->update([
+                    'message' => $request->message
+                ]);
+            } else {
+                Announcement::create([
+                    'message' => $request->message
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Announcement sent.');
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send emergency notification: ' . $e->getMessage());
+
+            return redirect()->back()
+                ->with('error', 'Failed to send emergency notification. Please try again.')
+                ->withInput();
+        }
+    }
+
+
+    /**
+     * Delete an emergency notification
+     */
+    public function delete($id)
+    {
+        try {
+            $notification = Announcement::findOrFail($id);
+
+            $notification->delete();
+
+            return redirect()->back()->with('success', 'record deleted successfully.');
+
+        } catch (\Exception $e) {
+            Log::error('Failed to delete emergency notification: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to delete emergency notification.');
+        }
+    }
 
 
 }

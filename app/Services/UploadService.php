@@ -20,14 +20,12 @@ class UploadService
 
         $filename = time() . '_' . Str::random(10) . '.' . $image->getClientOriginalExtension();
 
-        // This will store the file in storage/app/public/kyc_images
         $path = $image->storeAs('images', $filename, 'public');
 
         if (!$path) {
             throw new Exception('Failed to store image');
         }
 
-        // This will return a public URL like /storage/kyc_images/filename.jpg
         $imageUrl = Storage::url($path);
 
         return [

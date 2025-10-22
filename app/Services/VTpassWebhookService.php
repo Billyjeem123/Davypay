@@ -31,13 +31,13 @@ class VTpassWebhookService
 
         if (!$transaction) {
             BillLogger::log('Transaction not found for webhook', ['requestId' => $requestId]);
-            return;
+            return null;
         }
-//        $AlreadyProcessed =   $this->isAlreadyProcessed($requestId);
-//        if($AlreadyProcessed){
-//            BillLogger::log("Vtpass transaction already processed", ['requestId' => $requestId]);
-//            return ['success' => true, 'message' => 'Already processed'];
-//        }
+        $AlreadyProcessed =   $this->isAlreadyProcessed($requestId);
+        if($AlreadyProcessed){
+            BillLogger::log("Vtpass transaction already processed", ['requestId' => $requestId]);
+            return ['success' => true, 'message' => 'Already processed'];
+        }
 
 
         DB::beginTransaction();

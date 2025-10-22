@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
 
             // Basic KYC fields (Tier 1 & 2)
-            $table->string('bvn')->nullable()->unique();
+            $table->string('bvn')->nullable();
             $table->string('nin')->nullable();
             $table->string('selfie')->nullable();
             $table->string('utility_bill')->nullable();

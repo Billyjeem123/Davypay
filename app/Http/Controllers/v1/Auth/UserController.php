@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers\v1\Auth;
 
+use App\Helpers\UsdtLogger;
 use App\Helpers\Utility;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GlobalRequest;
+use App\Models\Announcement;
 use App\Models\UserDevice;
 use App\Services\ActivityTracker;
+use App\Services\StroUsdtService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -46,35 +49,52 @@ class UserController extends Controller
     }
 
 
-
-    public function Login(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function Login(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
             $user = $this->userService->authenticateUser($validatedData);
+
             if ($user instanceof JsonResponse) {
                 return $user;
             }
 
-            $this->tracker->track('login',  null, [
-                 'user_id' => $user['user']['id'] ?? null,
+            $userId = $user['user']['id'] ?? null;
+
+            $this->tracker->track('login', null, [
+                'user_id' => $userId,
                 'logged in' => true,
             ]);
+            try {
+                $walletResponse = app(StroUsdtService::class)->createUsdtAddress($userId);
+                $user['usdt_wallet'] = $walletResponse['data'] ?? null;
+            } catch (\Throwable $ex) {
+                UsdtLogger::log("USDT Wallet creation failed for user {$userId}: " . $ex->getMessage());
+                $user['usdt_wallet'] = null;
+            }
+
             return Utility::outputData(true, 'Login successful', $user, 200);
+
         } catch (\Throwable $e) {
             Log::error("Error during login: " . $e->getMessage());
-            return Utility::outputData(false, "Unable to login. Please check your credentials", [Utility::getExceptionDetails($e)], 401);
+            return Utility::outputData(
+                false,
+                "Unable to login. Please check your credentials",
+                [Utility::getExceptionDetails($e)],
+                401
+            );
         }
     }
 
 
-    public function checkCredential(GlobalRequest $request): \Illuminate\Http\JsonResponse
+
+    public function checkCredential(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
             $response = $this->userService->verifyCredential($validatedData);
 
-            if ($response instanceof \Illuminate\Http\JsonResponse) {
+            if ($response instanceof JsonResponse) {
                 return $response;
             }
 
@@ -164,7 +184,7 @@ class UserController extends Controller
         }
     }
 
-    public function forgetPassword(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function forgetPassword(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
@@ -176,7 +196,7 @@ class UserController extends Controller
     }
 
 
-    public function resetPin(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function resetPin(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
@@ -206,7 +226,7 @@ class UserController extends Controller
         }
     }
 
-    public function saveToken(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function saveToken(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
@@ -218,7 +238,7 @@ class UserController extends Controller
     }
 
 
-    public function Logout(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function Logout(GlobalRequest $request): JsonResponse
     {
         try {
             $user = Auth::user();
@@ -234,7 +254,7 @@ class UserController extends Controller
     }
 
 
-    public function LoginWithPin(GlobalRequest $request): \Illuminate\Http\JsonResponse
+    public function LoginWithPin(GlobalRequest $request): JsonResponse
     {
         try {
             $validatedData = $request->validated();
@@ -246,6 +266,19 @@ class UserController extends Controller
         }
     }
 
+
+    public function allAnnouncement(GlobalRequest $request): JsonResponse
+    {
+        try {
+            $announcements = Announcement::all()->select('message', 'title');
+            return Utility::outputData(true, 'Announcements fetched successfully.', $announcements, 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Failed to fetch announcements: ' . $e->getMessage());
+
+            return Utility::outputData(false, 'Unable to fetch announcements.', [Utility::getExceptionDetails($e)], 500);
+        }
+    }
 
 
 

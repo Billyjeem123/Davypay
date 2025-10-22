@@ -56,6 +56,7 @@ class VirtualCard extends Model
         'card_user_id',
         'reference',
         'customer_id',
+        'customerId'
     ];
 
     protected $casts = [
@@ -67,7 +68,7 @@ class VirtualCard extends Model
 
     protected $hidden = [
         'id_number',
-        'api_response',
+//        'api_response',
     ];
 
     public function getFullNameAttribute(): string

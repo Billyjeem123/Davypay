@@ -10,6 +10,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Symfony\Component\HttpKernel\HttpCache\Esi;
 
 class User extends Authenticatable
 {
@@ -141,8 +142,8 @@ class User extends Authenticatable
     {
         return [
             'referral_code' => $this->referral_code,
-            'ios_link' => "https:# apps.apple.com/app/yourapp?ref={$this->referral_code}",
-            'android_link' => "https:# play.google.com/store/apps/details?id=com.yourapp&ref={$this->referral_code}",
+            'ios_link' => "https://apps.apple.com/app/yourapp?ref={$this->referral_code}",
+            'android_link' => "https://play.google.com/store/apps/details?id=com.yourapp&ref={$this->referral_code}",
             'web_link' => url("/register?ref={$this->referral_code}")
         ];
     }
@@ -169,19 +170,29 @@ class User extends Authenticatable
         return $this->hasOne(Tier::class, 'name', 'account_level');
     }
 
+    public function usdtWallet()
+    {
+        return $this->hasOne(UsdtWallet::class);
+    }
 
+    public function physical_card()
+    {
+        return $this->hasOne(NairaCard::class);
+    }
 
-    public function virtual_cards()
+    public function virtual_card()
     {
         $preferredProvider = Utility::getSetting('preferred_virtual_card_provider', 'strowallet');
 
-        return $this->hasMany(VirtualCard::class, 'user_id')
+        return $this->hasOne(VirtualCard::class, 'user_id')
             ->when($preferredProvider, function ($query, $provider) {
                 return $query->where('provider', $provider);
             });
     }
-
-
+    public function virtual_cards()
+    {
+       return $this->hasMany(UserVirtualCard::class, 'user_id');
+    }
 
 
     public static function getWalletIdByUserId($userId)
@@ -309,6 +320,23 @@ class User extends Authenticatable
             ->select('id','user_id', 'account_name', 'bank_name', 'account_number', 'provider');
     }
 
+
+    public function referralsMade()
+    {
+        return $this->hasMany(Referral::class, 'referrer_id');
+    }
+
+// In User.php
+    public function referral()
+    {
+        return $this->hasOne(Referral::class, 'referred_id');
+    }
+
+
+    public function esim()
+    {
+        return $this->hasMany(Esim::class, 'user_id');
+    }
 
 
 }

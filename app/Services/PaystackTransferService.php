@@ -316,7 +316,7 @@ class PaystackTransferService
     /**
      * Generate unique transfer reference
      */
-    private function generateReference()
+    private function generateReference(): string
     {
         return Utility::txRef("bank-transfer", "paystack", false);
     }
@@ -408,14 +408,31 @@ class PaystackTransferService
 
         if (!$response->successful() || !($responseData['status'] ?? false)) {
             $message = $responseData['message'] ?? 'Unknown error';
-            $errors = $responseData['data']['errors'] ?? null;
 
-            // Combine message and specific field errors if any
-            $detailedError = is_array($errors)
-                ? $message . ' - ' . json_encode($errors)
+            # Check for specific Paystack errors that should be hidden
+            $hiddenErrors = [
+                'Your balance is not enough to fulfil this request',
+                'Insufficient funds',
+                'Balance too low',
+                'Account balance insufficient'
+            ];
+
+            $shouldHideError = false;
+            foreach ($hiddenErrors as $hiddenError) {
+                if (stripos($message, $hiddenError) !== false) {
+                    $shouldHideError = true;
+                    break;
+                }
+            }
+
+            // Return generic message for sensitive errors
+            $userMessage = $shouldHideError
+                ? 'Service not available. Please try again later.'
                 : $message;
 
-            throw new \Exception('Paystack transfer failed: ' . $detailedError);
+            throw ValidationException::withMessages([
+                'transfer' => [$userMessage]
+            ]);
         }
 
         return $responseData;
@@ -487,13 +504,13 @@ class PaystackTransferService
      * Get list of supported banks
      */
 
-    public function getBanks()
+    public function getBanks001()
     {
         $response = Http::get('https://supermx1.github.io/nigerian-banks-api/data.json');
         return $response->json();
     }
 
-    public function getBanks001()
+    public function getBanks()
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->secretKey

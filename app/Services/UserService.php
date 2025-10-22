@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\PushNotificationEvent;
+use App\Exceptions\StroUsdtException;
 use App\Helpers\Utility;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendPushNotificationJob;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use App\Notifications\ForgetPasswordNotification;
 use App\Notifications\ForgetPinNotification;
+use Expose\Client\Http\App;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +40,7 @@ class UserService
 
             $this->assignUserRole($user);
             $this->createUserWallet($user);
+             $this->createUsdtWallet($user);
 
             $this->registerUserDevice($user, $validatedData);
             $this->processReferralIfExists($validatedData, $user);
@@ -184,6 +187,14 @@ class UserService
         ]);
     }
 
+    /**
+     * @throws StroUsdtException
+     */
+    private function createUsdtWallet(User $user): void
+    {
+        app(StroUsdtService::class)->createUsdtAddress($user->id);
+    }
+
     private function processReferralIfExists(array $validatedData, User $user): void
     {
         if (empty($validatedData['referral_code'])) {
@@ -255,15 +266,15 @@ class UserService
         }
 
 
-        # Check device restrictions if device_id is provided
-        if (isset($credentials['device_id'])) {
-            $deviceCheckResult = $this->checkDeviceAuthorization($user, $credentials);
-
-            # If device check failed, return the error response
-            if ($deviceCheckResult !== true) {
-                return $deviceCheckResult;
-            }
-        }
+//        # Check device restrictions if device_id is provided
+//        if (isset($credentials['device_id'])) {
+//            $deviceCheckResult = $this->checkDeviceAuthorization($user, $credentials);
+//
+//            # If device check failed, return the error response
+//            if ($deviceCheckResult !== true) {
+//                return $deviceCheckResult;
+//            }
+//        }
 
 
         return [

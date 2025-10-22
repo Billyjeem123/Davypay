@@ -957,7 +957,7 @@ class NombaService
     }
 
 
-    public function resolveAccountNumber(array $data): array
+    public function resolveAccountNumber(array $data)
     {
         $payload = [
             'accountNumber' => $data['account_number'],

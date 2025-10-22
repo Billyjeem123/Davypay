@@ -10,6 +10,7 @@ use App\Http\Requests\NombaTransferRequest;
 use App\Services\NombaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 
 class NombaController extends Controller
@@ -149,6 +150,18 @@ class NombaController extends Controller
     }
 
 
+    public function testArtisan()
+    {
+        Artisan::call('referrals:process-rewards');
+
+        $output = Artisan::output();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Referral reward command executed successfully.',
+            'output' => $output,
+        ]);
+    }
 
 
 

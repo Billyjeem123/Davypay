@@ -98,9 +98,12 @@ class Utility
             "betting" => "BET",
             "reverse" => 'REV',
             "virtual" => 'VIRTUAL',
+            "sms" => 'SMS',
+            "reward" => 'RWD',
+            "esim" => 'ESIM',
         ];
 
-        $leading = 'BILLIA';
+        $leading = env('APP_NAME');
         $time = substr(strval(time()), -4);
         $str = Str::upper(Str::random(4));
         $payment_type = array_key_exists($payment_channel, $payment_channels) ? $payment_channels[$payment_channel] : 'TRNX';

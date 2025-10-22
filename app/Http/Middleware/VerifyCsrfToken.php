@@ -20,7 +20,9 @@ class VerifyCsrfToken extends Middleware
         'api/webhook/kyc',
         'api/webhook/redbiller',
         'api/webhook/nomba',
-        'api/payment/nomba-callback'
+        'api/payment/nomba-callback',
+        'api/webhook/virtual-card',
+        'api/webhook/esim'
     ];
 }
 

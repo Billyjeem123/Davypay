@@ -2,13 +2,19 @@
 
 use App\Http\Controllers\v1\Admin\AdminController;
 use App\Http\Controllers\v1\Admin\AdminWalletTransactionController;
+use App\Http\Controllers\v1\Admin\EpinRateController;
+use App\Http\Controllers\v1\Admin\EsimSettingsController;
+use App\Http\Controllers\v1\Admin\NairaCardController;
 use App\Http\Controllers\v1\Admin\NetworkProviderController;
+use App\Http\Controllers\v1\Admin\PlatformRevenueController;
 use App\Http\Controllers\v1\Admin\ProfileController;
 use App\Http\Controllers\v1\Admin\PushNotificationController;
+use App\Http\Controllers\v1\Admin\ReferralManagementController;
+use App\Http\Controllers\v1\Admin\VirtualCardSettingsController;
 use App\Http\Controllers\v1\Admin\TransactionFeeController;
 use App\Http\Controllers\v1\Banner\BannerController;
+use App\Http\Controllers\v1\VirtualCard\GiftCardController;
 use Illuminate\Broadcasting\BroadcastController;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -66,18 +72,25 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function () {
     /**
      * Transaction Management
      */
-
     Route::get('/transaction-fee', [AdminController::class, 'getTransactionFees'])->name('transaction.fee');
+    Route::get('/deliveries-fee', [AdminController::class, 'getDeliveryFees'])->name('delivery.fee');
     Route::get('/configure-payment-gateway', [TransactionFeeController::class, 'PaymentConfiguration'])->name('configure-payment');
     Route::post('/transaction-fee/update', [TransactionFeeController::class, 'updateTransactionFee'])->name('transaction-fee.update');
+    Route::put('/deliveries-fee/update', [TransactionFeeController::class, 'updateDeliveryFee'])->name('delivery-fee.update');
     Route::delete('/transaction-fee/{id}', [TransactionFeeController::class, 'deleteFee'])->name('transaction-fee.destroy');
+    Route::delete('/deliveries-fee/{id}', [TransactionFeeController::class, 'deleteDeliveryFee'])->name('delivery-fee.destroy');
     Route::get('/tier-settings', [AdminController::class, 'tierSettings'])->name('tier_settings');
     Route::get('/set-dollar-rate', [AdminController::class, 'setDollarRate'])->name('dollar_rate');
     Route::get('/set-preferred-provider', [AdminController::class, 'setProvider'])->name('set_preferred_provider');
     Route::post('/save-dollar-rate', [AdminController::class, 'saveDollarRate'])->name('save_dollar_rate');
+    Route::get('/epin-rates', [EpinRateController::class, 'index'])->name('all.epin.rate');
+    Route::post('/set-ecard-rate', [EpinRateController::class, 'storeOrUpdate'])->name('store.epin.rate');
+    Route::delete('/ecard-rate/{id}', [EpinRateController::class, 'destroy'])->name('epin-rate.destroy');
     Route::post('/tiers', [AdminController::class, 'updateTier'])->name('tiers.update');
     Route::post('/save-transfer-fee', [TransactionFeeController::class, 'saveTransferFee'])->name('save.transfer.fee');
     Route::post('/save-deposit-fee', [TransactionFeeController::class, 'saveTransferFeeDeposit'])->name('save.deposit.fee');
+    Route::post('/save-transaction-fee', [TransactionFeeController::class, 'saveTransactionFee'])->name('transaction-fee.store');
+    Route::post('/save-deliveries-fee', [TransactionFeeController::class, 'saveDeliveryFee'])->name('deliveries-fee.store');
     Route::get('/all-transaction', [AdminController::class, 'allTransactions'])->name('all.transactions');
     Route::get('/pending-transaction', [AdminController::class, 'pendingTransactions'])->name('pending.transactions');
     Route::get('/failed-transaction', [AdminController::class, 'failedTransactions'])->name('failed.transactions');
@@ -112,6 +125,13 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function () {
     Route::get('/dashboard/broadcast-message', [BroadcastController::class, 'broadcastMessage'])->name('dashboard.broadcast.message');
     Route::post('/dashboard/broadcast/send', [PushNotificationController::class, 'sendBroadcast'])->name('dashboard.broadcast.send');
 
+
+    /**
+     * Announcement Notifications
+     */
+    Route::get('/announcement-message', [AdminController::class, 'allAnnoucement'])->name('announcement');
+    Route::post('/send', [AdminController::class, 'sendAnnouncement'])->name('send_announcement');
+    Route::get('/delete/announcement/{id}', [AdminController::class, 'delete'])->name('delete_announcement');
 
     /**
      * AJAX API Endpoints
@@ -153,6 +173,62 @@ Route::middleware(['admin.auth'])->prefix('admin')->group(function () {
     Route::patch('/banners/{id}/deactivate', [BannerController::class, 'deactivate'])->name('banners.deactivate');
     Route::delete('/banners/{id}', [BannerController::class, 'delete'])->name('banners.delete');
 
+
+    # Referrals
+    Route::get('/banners', [BannerController::class, 'index'])->name('banners.index');
+    Route::post('/banners/upload', [BannerController::class, 'uploadBanner'])->name('banners.upload');
+
+    Route::get('/admin/referral', [ReferralManagementController::class, 'index'])->name('rewards.index');
+    Route::get('/admin/details/{id}', [ReferralManagementController::class, 'details'])->name('rewards.details');
+    Route::post('/referral/save-fee', [ReferralManagementController::class, 'saveReferralFee'])->name('referral.saveFee');
+
+    Route::get('/set-payment-services', [AdminController::class, 'getPaymentServices'])->name('set_payment_services');
+    Route::delete('/admin/services/rates/{id}', [AdminController::class, 'deleteServiceCharge'])->name('delete.service.charge');
+    Route::post('/services/rates/store', [AdminController::class, 'saveServiceCharges'])->name('store.service.rates');
+
+    //GiftCards
+    Route::get('/gift-cards', [AdminController::class, 'getGiftCards'])->name('gift-cards');
+    Route::get('/gift-card/listing', [AdminController::class, 'getGiftCardListing'])->name('gift-cards.listing');
+    Route::post('/gift-card/listing', [GiftCardController::class, 'store'])->name('gift-cards.listing.store');
+    Route::put('/gift-card/listing', [GiftCardController::class, 'update'])->name('gift-cards.listing.update');
+    Route::delete('/gift-card/listing/{id}', [GiftCardController::class, 'destroy'])->name('gift-cards.listing.destroy');
+    Route::get('/gift-cards/{id}', [AdminController::class, 'show'])->name('gift-cards.show');
+    Route::post('/gift-cards/approve', [GiftCardController::class, 'confirm'])->name('gift-cards.approve');
+    Route::post('/gift-cards/{id}/evaluate', [GiftCardController::class, 'evaluate'])->name('gift-cards.evaluate');
+    Route::post('/gift-cards/reject', [GiftCardController::class, 'reject'])->name('gift-cards.reject');
+
+
+
+        Route::get('/settings', [VirtualCardSettingsController::class, 'index'])->name('settings.index');
+
+        Route::post('/settings', [VirtualCardSettingsController::class, 'store'])->name('settings.store');
+
+        Route::get('/settings/api/all', [VirtualCardSettingsController::class, 'getAllSettings'])->name('settings.api.all');
+
+        Route::get('/settings/api/{settingType}', [VirtualCardSettingsController::class, 'getSetting'])->name('settings.api.get');
+
+    Route::get('admin/virtual-card-settings', [VirtualCardSettingsController::class, 'index'])
+        ->name('admin.virtual-card.settings.index');
+
+    Route::post('admin/virtual-card-settings', [VirtualCardSettingsController::class, 'store'])
+        ->name('admin.virtual-card.settings.store');
+
+
+    Route::get('/esim/settings', [EsimSettingsController::class, 'index'])->name('esim.settings.index');
+    Route::post('/esim/settings', [EsimSettingsController::class, 'updateEsimSettings'])->name('esim.settings.update');
+
+        // Naira Cards Management
+        Route::prefix('naira-cards')->name('naira-cards.')->group(function () {
+            Route::get('/', [NairaCardController::class, 'index'])->name('index');
+            Route::get('/{id}', [NairaCardController::class, 'show'])->name('show');
+            Route::post('/{id}/delivery/update-status', [NairaCardController::class, 'updateStatus'])->name('delivery.update-status');
+            Route::post('/{id}/card/update-status', [NairaCardController::class, 'deactivateCard'])->name('card.update-status');
+            Route::get('/{id}/view-card', [NairaCardController::class, 'viewCard'])->name('view-card');
+            Route::get('/transactions/all', [NairaCardController::class, 'transactions'])->name('transactions');
+            Route::get('/transactions/fee', [NairaCardController::class, 'getTransactionFees'])->name('transactions.fees');
+        });
+
+    Route::get('/platform-revenues', [PlatformRevenueController::class, 'index'])->name('revenues.index');
 
 });
 

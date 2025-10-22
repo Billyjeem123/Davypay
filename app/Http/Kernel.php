@@ -67,5 +67,6 @@ class Kernel extends HttpKernel
         'tier' => RestrictAccountTier::class,
         'admin.auth' => \App\Http\Middleware\AdminAuthentication::class,
         'idempotency' => \App\Http\Middleware\EnsureIdempotency::class,
+        'verify.strowallet' => \App\Http\Middleware\VerifyStrowalletWebhook::class,
     ];
 }

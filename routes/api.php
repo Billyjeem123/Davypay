@@ -5,19 +5,28 @@ use App\Http\Controllers\v1\Auth\UserController;
 use App\Http\Controllers\v1\Banner\BannerController;
 use App\Http\Controllers\v1\Beneficiary\BeneficiaryController;
 use App\Http\Controllers\v1\Bill\BillController;
+use App\Http\Controllers\v1\Esim\EsimController;
+use App\Http\Controllers\v1\Flight\WakanowController;
 use App\Http\Controllers\v1\Kyc\KycController;
 use App\Http\Controllers\v1\Notification\NotificationController;
 use App\Http\Controllers\v1\Payment\NombaController;
 use App\Http\Controllers\v1\Payment\NombaTransferController;
 use App\Http\Controllers\v1\Payment\NombaWalletTransferController;
+use App\Http\Controllers\v1\Payment\PaymentChargesController;
 use App\Http\Controllers\v1\Payment\PaystackController;
 use App\Http\Controllers\v1\Payment\PaystackTransferController;
+use App\Http\Controllers\v1\Payment\SecureInAppTransferController;
 use App\Http\Controllers\v1\Referrral\ReferralController;
+use App\Http\Controllers\v1\Sms\SmsController;
 use App\Http\Controllers\v1\Tier\TierController;
 use App\Http\Controllers\v1\Transaction\TransactionController;
 use App\Http\Controllers\v1\Upload\UploadController;
+use App\Http\Controllers\v1\VirtualCard\CardController;
 use App\Http\Controllers\v1\VirtualCard\EversendCardController;
+use App\Http\Controllers\v1\VirtualCard\GiftCardController;
 use App\Http\Controllers\v1\VirtualCard\StrollWalletController;
+use App\Http\Controllers\v1\VirtualCard\StroUsdtController;
+use App\Http\Controllers\v1\Webhook\CardWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -35,7 +44,7 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    $user = Auth::user()->load(['wallet', 'virtual_accounts', 'virtual_cards']);
+    $user = Auth::user()->load(['wallet', 'virtual_accounts', 'virtual_cards', 'usdtWallet']);
     return new \App\Http\Resources\UserResource($user);
 });
 
@@ -129,13 +138,13 @@ Route::prefix('kyc')->middleware('auth:sanctum')->group(function () {
 });
 
 
-
 Route::prefix('webhook')->group(function () {
     Route::post('/nomba', [\App\Http\Controllers\v1\Webhook\NombaWebhookController::class, 'nombaWebhook']);
     Route::post('/verify-vtu-bills', [\App\Http\Controllers\v1\Webhook\VTpassWebhookController::class, 'processVtPassWebHook']);
     Route::post('/paystack', [\App\Http\Controllers\v1\Webhook\PaystackWebhookController::class, 'paystackWebhook']);
     Route::post('/redbiller', [\App\Http\Controllers\v1\Webhook\RedbillerWebhookController::class, 'redBiller3dWebhook']);
     Route::post('/kyc', [\App\Http\Controllers\v1\Webhook\DojahWebhookController::class, 'dojahWebhook']);
+    Route::post('/virtual-card', [\App\Http\Controllers\v1\Webhook\VirtualCardWebhookController::class, 'handle'])->middleware('verify.strowallet');
 
 
 });
@@ -167,8 +176,11 @@ Route::prefix('payment')->group(function () {
     | In-App Transfer
     |--------------------------------------------------------------------------
     */
-    Route::post('/in-app-transfer', [\App\Http\Controllers\v1\Payment\SecureInAppTransferController::class, 'InAppTransferNow'])->middleware(['auth:sanctum', 'idempotency:true']);
-    Route::post('/calculate-charges', [\App\Http\Controllers\v1\Payment\PaymentChargesController::class, 'calculateFee']);
+    Route::post('/in-app-transfer', [SecureInAppTransferController::class, 'InAppTransferNow'])->middleware(['auth:sanctum', 'idempotency:true']);
+    Route::post('/calculate-charges', [PaymentChargesController::class, 'calculateFee']);
+    Route::post('/get-service-charge', [PaymentChargesController::class, 'getServiceCharge']);
+    Route::post('pay/epin/permit', [PaymentChargesController::class, 'payPermit']);
+
 
     /*
     |--------------------------------------------------------------------------
@@ -195,8 +207,6 @@ Route::prefix('payment')->group(function () {
 });
 
 
-
-
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/referral/link', [ReferralController::class, 'getReferralLink']);
     Route::get('/referral/history', [ReferralController::class, 'getReferralHistory']);
@@ -218,17 +228,44 @@ Route::middleware(['auth:sanctum', 'tier:tier_3'])->prefix('eversend')->group(fu
 
 
 Route::middleware(['auth:sanctum'])->prefix('strollwallet')->group(function () {
-     Route::post('/create/account', [StrollWalletController::class, 'createAccountAndCard']);
-    Route::post('/get-customer', [StrollWalletController::class, 'getCustomerData']);
+    Route::post('/create/account', [StrollWalletController::class, 'createAccount']);
+    Route::get('/get-customer', [StrollWalletController::class, 'getCustomerData']);
+    Route::post('/create/card', [StrollWalletController::class, 'createCard']);
+    Route::post('/update/customer', [StrollWalletController::class, 'updateCustomer']);
+    Route::get('/card-info/{card_id}', [StrollWalletController::class, 'getCardDetails']);
     Route::post('/fund/account', [StrollWalletController::class, 'FundWallet']);
-    Route::post('/card-info/{card_id}', [StrollWalletController::class, 'getCardDetails']);
     Route::post('/card-transactions/{card_id}', [StrollWalletController::class, 'getCardTransactions']);
-    Route::post('/withdrawal', [StrollWalletController::class, 'web']);
-    Route::post('/card/freeze', [EversendCardController::class, 'FreezeACard']);
-    Route::post('/card/unfreeze', [EversendCardController::class, 'UnFreezeACard']);
+    Route::post('/withdrawal', [StrollWalletController::class, 'WithdrawFromCard']);
+    Route::post('/withdrawal/status', [StrollWalletController::class, 'withdrawalStatus']);
+    Route::get('/transaction-settings', [StrollWalletController::class, 'getVirtualSettings']);
+    Route::post('/freeze-unfreeze', [StrollWalletController::class, 'freezeUnFreezeCard']);
     Route::post('/card/terminate', [EversendCardController::class, 'terminateACard']);
+    Route::post('/create/usdt', [StroUsdtController::class, 'generateUsdtAddress']);
+    Route::get('/usdt-history', [StroUsdtController::class, 'getUsdtHistory']);
+    Route::post('/send-usdt', [StroUsdtController::class, 'sendUsdt']);
+    Route::post('/webhook', [StroUsdtController::class, 'handle']);
+    Route::get('/usdt/exchange-rate', [StroUsdtController::class, 'getExchangeRate']);
+    Route::post('/usdt/convert', [StroUsdtController::class, 'convert']);
+    Route::post('/virtual-card/fund-usdt', [StroUsdtController::class, 'fundFromUsdt']);
+    Route::get('/epin/provider', [StroUsdtController::class, 'getProviders']);
+    Route::post('/epin/buy', [StroUsdtController::class, 'buy']);
+    Route::get('/epin/files', [StroUsdtController::class, 'getMyPdfs']);
+    Route::get('/epin/download/{filename}', [StroUsdtController::class, 'downloadByFilename']);
+
 });
 
+Route::middleware(['auth:sanctum', 'tier:tier_3'])->prefix('cards')->group(function () {
+    Route::post('/create/naira-card', [CardController::class, 'createNairaCard']);
+    Route::post('/change-pin', [CardController::class, 'changePin']);
+    Route::get('/get/naira-card', [CardController::class, 'viewPhysicalCard']);
+    Route::get('/history', [CardController::class, 'viewCardHistory']);
+    Route::post('/enable-2fa', [CardController::class, 'enable2fa']);
+    Route::post('/reset-pin', [CardController::class, 'resetPin']);
+    Route::post('/create-dispute', [CardController::class, 'createDispute']);
+    Route::post('/update-status', [CardController::class, 'updateCardStatus']);
+    Route::post('/delivery', [CardController::class, 'updateAddress']);
+    Route::get('/fees', [CardController::class, 'getFees']);
+});
 
 Route::prefix('betting')->group(function () {
     Route::get('/betsites', [\App\Http\Controllers\v1\Betting\BettingController::class, 'getBetSites'])->middleware('auth:sanctum');
@@ -262,9 +299,52 @@ Route::prefix('banner')->middleware('auth:sanctum')->group(function () {
 
 });
 
+Route::middleware(['auth:sanctum'])->prefix('wakanow')->group(function () {
+    Route::post('flight/search', [WakanowController::class, 'searchFlights']);
+    Route::post('flight/select', [WakanowController::class, 'selectFlight']);
+    Route::post('flight/book', [WakanowController::class, 'bookFlight']);
+    Route::post('flight/ticket', [WakanowController::class, 'ticketFlight']);
+    Route::get('flight/airports', [WakanowController::class, 'airports']);
+    Route::get('flight/airports-raw', [WakanowController::class, 'airportsRaw']);
+    Route::get('wallet', [WakanowController::class, 'walletBalance']);
+});
+
+
+Route::prefix('bulk-sms')->middleware('auth:sanctum')->group(function () {
+    Route::post('/contact', [SmsController::class, 'saveContact']);
+    Route::post('/bulk-upload', [SmsController::class, 'uploadBulkContact']);
+    Route::post('/cost', [SmsController::class, 'getCost']);
+    Route::post('/send', [SmsController::class, 'sendSMS']);
+
+});
+
+Route::prefix('giftcards')->middleware('auth:sanctum')->group(function () {
+    Route::get('/', [GiftCardController::class, 'index']);
+    Route::get('/my-list', [GiftCardController::class, 'myList']);
+    Route::post('/', [GiftCardController::class, 'sell']);
+});
+
+
+Route::prefix('esim')->middleware('auth:sanctum')->group(function () {
+    Route::get('/data-plan', [EsimController::class, 'getDataPlans']);
+    Route::post('/create', [EsimController::class, 'createEsim']);
+    Route::post('/activate/{iccid}', [EsimController::class, 'ActivateEsim']);
+    Route::get('/profile/{iccid}', [EsimController::class, 'getICCIDProfile']);
+    Route::get('/data-usage/{iccid}', [EsimController::class, 'getDataUsage']);
+    Route::get('/countries', [EsimController::class, 'getCountries']);
+    Route::get('/my-sim', [EsimController::class, 'myEsims']);
+    Route::get('/settings', [EsimController::class, 'getEsimSettings']);
+
+});
+
+Route::post('/webhooks/card', [CardWebhookController::class, 'handle'])->name('webhook.strowallet.card');
+Route::post('/webhooks/card/authorization', [CardWebhookController::class, 'handleAuthorization']);
+Route::post('/webhooks/card/transaction-created', [CardWebhookController::class, 'handleTransactionCreated']);
+Route::post('/webhooks/card/transaction-refund', [CardWebhookController::class, 'handleTransactionRefund']);
 
 Route::post('/document/upload', [\App\Http\Controllers\v1\Upload\UploadController::class, 'documentUploads']);
 Route::get('/test-auth', [NombaController::class, 'testAuthentication']);
 Route::get('/all', [UserController::class, 'allUsers']);
+Route::get('/all-announcement', [UserController::class, 'allAnnouncement']);
 Route::post('/update-profile-image', [UploadController::class, 'updateProfileImage'])->middleware('auth:sanctum');
-
+Route::get('/test-artisan', [NombaController::class, 'testArtisan']);

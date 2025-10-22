@@ -40,6 +40,8 @@ class PermissionSeeder extends Seeder
 
             // Security & Monitoring
             'view fraudulent transaction reports',
+            // Gift-Cards
+            'manage gift-cards',
 
             // Reports & Analytics
             'view transaction analytics',

@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Log;
 
 class VirtualLogger
 {
-
     public  static function log(string $message, array $context = []): void
     {
         Log::channel('virtual_cards')->info($message, $context);

@@ -90,11 +90,25 @@ return [
         'secret'      => env('STROLLWALLET_PRIVATE_KEY'),
         'public_key'  => env('STROLLWALLET_PUBLIC_KEY'),
         'webhook_url' => env('STROLLWALLET_WEBHOOK_URL'),
+        'webhook_secret' => env('STROWALLET_WEBHOOK_SECRET'),
         'vip_key'    => env('STROLLWALLET_VIP_KEY'),
     ],
 
     'vtpass' => [
         'base_url'    => env('VTPASS_BASE_URL', 'https://vtpass.com/api/'),
+    ],
+
+    'wakanow' => [
+        'base_url' => env('WAKANOW_BASE_URL'),
+        'username' => env('WAKANOW_USERNAME'),
+        'password' => env('WAKANOW_PASSWORD'),
+    ],
+
+
+    'sotel' => [
+        'base_url' => env('SOTEL_BASE_URL', 'https://BASE_URL'),
+        'api_key' => env('SOTEL_LIVE_API_KEY'),
+        'timeout' => env('SOTEL_TIMEOUT', 30),
     ],
 
 ];

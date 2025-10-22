@@ -6,6 +6,7 @@ use App\Events\PushNotificationEvent;
 use App\Helpers\BillLogger;
 use App\Helpers\PaymentLogger;
 use App\Helpers\Utility;
+use App\Models\PlatformRevenue;
 use App\Models\TransactionLog;
 use App\Models\User;
 use App\Models\UserActivityLog;
@@ -77,6 +78,7 @@ class VtPassService {
     private static function process_response(string $response, $data): JsonResponse
     {
         $response_array = json_decode($response, true);
+        self::recordVtpassProfit($response_array, $data);
 
         if (is_null($response_array)) {
             // Handle malformed response - this is a provider issue
@@ -222,74 +224,58 @@ class VtPassService {
         }
     }
 
-    private static function process_response001(string $response, $data): JsonResponse
+
+
+    /**
+     * Record VTpass transaction profit for successful transactions
+     *
+     * @param array $response_array  The decoded VTpass API response
+     * @param array $data            The original transaction data
+     * @return void
+     */
+    private static function recordVtpassProfit(array $response_array, array $data): void
     {
-        $response_array = json_decode($response, true);
+        try {
+            $tx = $response_array['content']['transactions'] ?? [];
 
-        if (is_null($response_array)) {
-            // Handle malformed response - this is a provider issue
-            self::handleFailedTransaction($data['transaction_id'], $data);
-
-            return response()->json([
-                'status' => false,
-                'message' => 'Invalid or malformed provider response. Please try again later.'
-            ], 500);
-        }
-
-        if ($response_array['code'] == '000') {
-            // Success case
-            TransactionLog::update_info($data['transaction_id'], [
-                'status' => 'successful',
-                'image' => request()->image,
-                'provider_response' => $response
-            ]);
-
-            if ($data['service_type'] === 'electricity') {
-                $message = $response_array['response_description'] . " Please Find Attach your " . $response_array['purchased_code'];
-            } elseif ($data['service_type'] === 'jamb') {
-                $message = $response_array['response_description'] . " Please Find Attach your " . $response_array['purchased_code'];
-            } else {
-                $message = $response_array['response_description'];
+            // Ensure transaction is actually successful
+            if (
+                ($response_array['code'] ?? null) !== '000' ||
+                ($tx['status'] ?? null) !== 'delivered'
+            ) {
+                return; // skip failed or pending transactions
             }
 
-            if ($data['service_type'] == 'waec') {
-                $pins = $response_array['cards'];
-                return response()->json([
-                    'status' => true,
-                    'message' => $message,
-                    'pins' => $pins
-                ]);
-            }
+            $commission = (float) ($tx['commission'] ?? 0);
+            $amount = (float) ($tx['amount'] ?? 0);
 
-            $user = Auth::user();
-            self::sendPushNotification(
-                $user,
-                'Transaction Successful',
-                "Your payment of ₦" . number_format($data['amount'], 2) . " is successful"
-            );
+            // 💡 You can adjust profit logic here
+            $profit = $commission; // or $commission + markup if applicable
 
-            return response()->json([
-                'status' => true,
-                'message' => $message
+            PlatformRevenue::create([
+                'user_id'         => Auth::id(),
+                'transaction_id'  => $tx['transactionId'] ?? $data['transaction_id'],
+                'product_name'    => $tx['product_name'] ?? '',
+                'type'            => $tx['type'] ?? '',
+                'status'          => $tx['status'] ?? 'unknown',
+                'amount'          => $amount,
+                'unit_price'      => (float) ($tx['unit_price'] ?? 0),
+                'commission'      => $commission,
+                'profit'          => $profit,
+                'platform'        => 'vtpass',
+                'unique_element'  => $tx['unique_element'] ?? null,
+                'channel'         => $tx['channel'] ?? null,
+                'response_code'   => $response_array['code'] ?? null,
+                'transaction_date'=> $response_array['transaction_date'] ?? now(),
+                'raw_response'    => $response_array
             ]);
 
-        } else {
-            # Handle provider-level failures (insufficient balance, invalid number, etc.)
-            self::handleFailedTransaction($data['transaction_id'], $data);
+        } catch (\Exception $e) {
+            BillLogger::error("Error recording VTpass profit", ['error' => $e->getMessage()]);
 
-            $user = Auth::user();
-            self::sendPushNotification(
-                $user,
-                'Transaction Failed',
-                "Your payment of ₦" . number_format($data['amount'], 2) . " failed"
-            );
-
-            return response()->json([
-                'status' => false,
-                'message' => $response_array['response_description']
-            ]);
         }
     }
+
 
 
 

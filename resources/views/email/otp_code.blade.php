@@ -29,6 +29,26 @@
                 </div>
 
 
+
+                <!-- Security Information -->
+                <div class="highlight-box">
+                    <div class="highlight-title">🛡️ Security First</div>
+                    <div class="highlight-text">
+                        <ul style="margin: 0; padding-left: 20px;">
+                            <li>This verification ensures your account security</li>
+                            <li>Your financial data is protected with bank-level encryption</li>
+                            <li>We'll never ask for your password via email</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Support Information -->
+                <p class="message">
+                    <strong>Need assistance?</strong><br>
+                    If you didn't request this verification or have any questions, our support team is available 24/7 at
+                    <a href="mailto:{{ $supportEmail  }}" style="color: #667eea; text-decoration: none; font-weight: 600;">{{ $supportEmail }}</a>
+                </p>
+
                 <!-- Closing -->
                 <p class="message">
                     Thank you for choosing {{ config('app.name') }} for your financial needs.<br><br>

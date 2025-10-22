@@ -4,9 +4,15 @@ namespace App\Http\Controllers\v1\Payment;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GlobalRequest;
+use App\Models\EpinPermit;
+use App\Models\PaymentServiceCharges;
 use App\Models\TransactionFee;
+use App\Models\TransactionLog;
+use App\Models\Wallet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentChargesController extends Controller
 {
@@ -152,4 +158,136 @@ class PaymentChargesController extends Controller
             ], 500);
         }
     }
+
+
+    public function getServiceCharge(GlobalRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        try {
+            $serviceType = $validated['service'];
+            $charge = PaymentServiceCharges::where('services', $serviceType)->first();
+            if (!$charge) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "No charge found for service: {$serviceType}"
+                ], 404);
+            }
+            return response()->json([
+                'success' => true,
+                'message' => "Charge retrieved successfully",
+                'data' => [
+                    'service' => $charge->services,
+                    'rate' => (float) $charge->amount
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Error fetching service charge: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => "Error fetching service charge",
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * User pays for ePIN permit (wallet debit + log + permit creation)
+     */
+    public function payPermit(Request $request)
+    {
+        $permitFee = TransactionFee::where('type', 'epin_permit')->value('min');
+
+        if (!$permitFee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Permit fee not configured',
+            ], 400);
+        }
+
+        $user = auth('sanctum')->user();
+
+        $existing = EpinPermit::where('user_id', $user->id)
+            ->where('status', true)
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You already have an active permit',
+            ], 400);
+        }
+
+        try {
+            $result = DB::transaction(function () use ($user, $permitFee) {
+                $wallet = Wallet::where('user_id', $user->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$wallet || $wallet->amount < $permitFee) {
+                    return [
+                        'success' => false,
+                        'message' => 'Insufficient wallet balance',
+                    ];
+                }
+
+                $walletBalanceBefore = $wallet->amount;
+                $wallet->decrement('amount', $permitFee);
+                $wallet->refresh();
+
+                $transaction = TransactionLog::create_transaction([
+                    'service_type'  => 'Epin_permit',
+                    'amount'        => $permitFee,
+                    'amount_before' => $walletBalanceBefore,
+                    'amount_after'  => $wallet->amount,
+                    'status'        => 'success',
+                    'wallet_id'     => $wallet->id,
+                    'provider'      => 'wallet',
+                    'type'          => 'debit',
+                    'description'   => "Epin Buying permit",
+                ]);
+
+                $permit = EpinPermit::updateOrCreate(
+                    ['user_id' => $user->id],
+                    [
+                        'status'     => true,
+                    ]
+                );
+
+                Log::info("Epin permit purchased", [
+                    'user_id'     => $user->id,
+                    'amount'      => $permitFee,
+                    'transaction' => (bool)$transaction,
+                    'permit_id'   => $permit->id
+                ]);
+
+                return [
+                    'success' => true,
+                    'message' => 'Permit activated successfully',
+                    'data'    => [
+                        'permit' => $permit,
+                        'wallet' => [
+                            'new_balance' => $wallet->amount,
+                            'amount'      => $permitFee,
+                        ]
+                    ]
+                ];
+            });
+
+            return response()->json($result, $result['success'] ? 200 : 400);
+
+        } catch (\Throwable $e) {
+            Log::error("Permit payment failed", [
+                'user_id' => $user->id,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Permit payment failed, please try again',
+            ], 500);
+        }
+    }
+
+
 }

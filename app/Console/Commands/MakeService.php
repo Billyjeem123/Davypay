@@ -15,7 +15,7 @@ class MakeService extends Command
         parent::__construct();
     }
 
-    public function handle()
+    public function handle(): void
     {
         $name = $this->argument('name');
         $path = app_path("Services/{$name}.php");

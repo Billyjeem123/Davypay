@@ -57,6 +57,7 @@ class PaystackTransferController extends Controller
             'idempotency_key' => $idempotencyKey,
         ];
         $result = $this->transferService->transferToBank($user, $transferData);
+        echo json_encode($result);
 
         $this->tracker->track(
             'initialize_external_bank_transfer',
@@ -85,15 +86,9 @@ class PaystackTransferController extends Controller
     /**
      * Get list of supported banks
      */
-    public function getBanks(): JsonResponse
+    public function getBanks()
     {
-        $banks = $this->transferService->getBanks();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Banks retrieved successfully',
-            'data' => $banks
-        ]);
+        return $this->transferService->getBanks();
     }
 
     /**
