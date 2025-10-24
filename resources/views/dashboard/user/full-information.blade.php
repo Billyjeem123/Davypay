@@ -532,28 +532,28 @@
                                                 <h5 class="mb-0">USDT Account</h5>
                                             </div>
                                             <div class="card-body">
-                                                    <div class="info-item">
-                                                        <div class="info-label">USDT Address</div>
-                                                        <div class="info-value">{{ $user->usdtWallet->address }}</div>
-                                                    </div>
-                                                    <div class="info-item">
-                                                        <div class="info-label">Network</div>
-                                                        <div class="info-value">{{ $user->usdtWallet->network }}</div>
-                                                    </div>
-                                                    <div class="info-item">
-                                                        <div class="info-label">Balance</div>
-                                                        <div class="info-value">{{ $user->usdtWallet->balance }}</div>
-                                                    </div>
-                                                    <div class="info-item">
-                                                        <div class="info-label">Status</div>
-                                                        <div class="info-value">{{ $user->usdtWallet->status }}</div>
-                                                    </div>
-                                                    <div class="info-item">
-                                                        <div class="info-label">Mode</div>
-                                                        <div class="info-value">{{ $user->usdtWallet->mode }}</div>
-                                                    </div>
+                                                <div class="info-item">
+                                                    <div class="info-label">USDT Address</div>
+                                                    <div class="info-value">{{ $user->usdtWallet->address }}</div>
+                                                </div>
+                                                <div class="info-item">
+                                                    <div class="info-label">Network</div>
+                                                    <div class="info-value">{{ $user->usdtWallet->network }}</div>
+                                                </div>
+                                                <div class="info-item">
+                                                    <div class="info-label">Balance</div>
+                                                    <div class="info-value">{{ $user->usdtWallet->balance }}</div>
+                                                </div>
+                                                <div class="info-item">
+                                                    <div class="info-label">Status</div>
+                                                    <div class="info-value">{{ $user->usdtWallet->status }}</div>
+                                                </div>
+                                                <div class="info-item">
+                                                    <div class="info-label">Mode</div>
+                                                    <div class="info-value">{{ $user->usdtWallet->mode }}</div>
                                                 </div>
                                             </div>
+                                        </div>
                                     @endif
 
                                     @if($user->virtual_accounts && count($user->virtual_accounts) > 0)
@@ -600,144 +600,144 @@
     </div>
 
 
-        <style>
-            body {
-                    background-color: #f8f9fa;
-            }
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
 
-            .profile-header {
-                background-color: #1a1a1a;
-                border-radius: 10px;
-                color: #ffffff;
-                padding: 2rem;
-                margin-bottom: 2rem;
-                border: 1px solid #333333;
-            }
+        .profile-header {
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            color: #ffffff;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid #333333;
+        }
 
-            .avatar-lg {
-                width: 80px;
-                height: 80px;
-                border-radius: 50%;
-                border: 3px solid rgba(255,255,255,0.3);
-                object-fit: cover;
-            }
+        .avatar-lg {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.3);
+            object-fit: cover;
+        }
 
-            .card {
-                border: none;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                margin-bottom: 2rem;
-            }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
 
-            .card-header {
-                background: white;
-                border-bottom: 1px solid #e9ecef;
-                padding: 1.5rem;
-                border-radius: 10px 10px 0 0 !important;
-            }
+        .card-header {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            padding: 1.5rem;
+            border-radius: 10px 10px 0 0 !important;
+        }
 
-            .status-badge {
-                display: inline-block;
-                padding: 0.25rem 0.75rem;
-                border-radius: 20px;
-                font-size: 0.875rem;
-                font-weight: 500;
-            }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
 
-            .status-verified {
-                background-color: #d4edda;
-                color: #155724;
-            }
+        .status-verified {
+            background-color: #d4edda;
+            color: #155724;
+        }
 
-            .status-pending {
-                background-color: #fff3cd;
-                color: #856404;
-            }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
 
-            .status-failed {
-                background-color: #f8d7da;
-                color: #721c24;
-            }
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
 
-            .info-item {
-                margin-bottom: 1.5rem;
-            }
+        .info-item {
+            margin-bottom: 1.5rem;
+        }
 
-            .info-label {
-                font-size: 0.875rem;
-                color: #6c757d;
-                margin-bottom: 0.25rem;
-                font-weight: 500;
-            }
+        .info-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+            font-weight: 500;
+        }
 
-            .info-value {
-                font-size: 1rem;
-                color: #212529;
-                font-weight: 600;
-            }
+        .info-value {
+            font-size: 1rem;
+            color: #212529;
+            font-weight: 600;
+        }
 
-            .nav-tabs .nav-link {
-                border: none;
-                border-radius: 20px;
-                margin-right: 0.5rem;
-                color: #6c757d;
-                font-weight: 500;
-            }
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 20px;
+            margin-right: 0.5rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
 
-            .nav-tabs .nav-link.active {
-                background-color: #1a1a1a;
-                color: white;
-            }
+        .nav-tabs .nav-link.active {
+            background-color: #1a1a1a;
+            color: white;
+        }
 
-            .activity-item {
-                border-left: 3px solid #667eea;
-                padding-left: 1rem;
-                margin-bottom: 1rem;
-            }
+        .activity-item {
+            border-left: 3px solid #667eea;
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
 
-            .activity-time {
-                font-size: 0.875rem;
-                color: #6c757d;
-            }
+        .activity-time {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
 
-            .btn-action {
-                margin-right: 0.5rem;
-                margin-bottom: 0.5rem;
-            }
+        .btn-action {
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
 
-            .tier-badge {
-                display: inline-block;
-                padding: 0.5rem 1rem;
-                border-radius: 25px;
-                font-weight: 600;
-                text-transform: uppercase;
-                font-size: 0.75rem;
-                letter-spacing: 0.5px;
-            }
+        .tier-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+        }
 
-            .tier-1 { background-color: #e3f2fd; color: #1976d2; }
-            .tier-2 { background-color: #fff3e0; color: #f57c00; }
-            .tier-3 { background-color: #f3e5f5; color: #7b1fa2; }
+        .tier-1 { background-color: #e3f2fd; color: #1976d2; }
+        .tier-2 { background-color: #fff3e0; color: #f57c00; }
+        .tier-3 { background-color: #f3e5f5; color: #7b1fa2; }
 
-            .kyc-document {
-                border: 1px solid #e9ecef;
-                border-radius: 8px;
-                padding: 1rem;
-                margin-bottom: 1rem;
-                background-color: #f8f9fa;
-            }
+        .kyc-document {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: #f8f9fa;
+        }
 
-            .device-info {
-                display: flex;
-                align-items: center;
-                margin-bottom: 0.5rem;
-            }
+        .device-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
 
-            .device-icon {
-                margin-right: 0.5rem;
-                color: #667eea;
-            }
-        </style>
+        .device-icon {
+            margin-right: 0.5rem;
+            color: #667eea;
+        }
+    </style>
 
 @endsection
 
