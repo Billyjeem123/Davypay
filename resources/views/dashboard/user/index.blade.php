@@ -14,9 +14,7 @@
                                 <h1 class="page-title text-dark">User Management Dashboard</h1>
                             </div>
                         </div>
-                        <div class="col-md-6 py-2 text-end">
-                            <a href="#" class="btn btn-sm btn-primary mb-2"><i class="uil-plus"></i> Add New User</a>
-                        </div>
+
                     </div>
 
                     <!-- Stats -->
