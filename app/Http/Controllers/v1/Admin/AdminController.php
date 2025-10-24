@@ -942,17 +942,31 @@ class AdminController extends Controller
 
 
 
-    public function tierSettings(){
+    public function tierSettings()
+    {
         $tiers = Tier::get()->map(function($tier) {
             // Clean and convert string values to float
             $tier->daily_limit = (float) preg_replace('/[₦,\s]/', '', $tier->daily_limit);
-            $tier->wallet_balance = (float) preg_replace('/[₦,\s]/', '', $tier->wallet_balance);
+
+            // If tier is tier_3, make wallet_balance 'unlimited'
+            if (strtolower($tier->name) === 'tier_3') {
+                $tier->wallet_balance = 'unlimited';
+            } else {
+                $tier->wallet_balance = (float) preg_replace('/[₦,\s]/', '', $tier->wallet_balance);
+            }
+
             return $tier;
         });
 
         $totalTiers = $tiers->count();
         $highestDailyLimit = $tiers->max('daily_limit') ?: 0;
-        $maxWalletBalance = $tiers->max('wallet_balance') ?: 0;
+
+        // Get the numeric wallet balances only (ignore 'unlimited')
+        $numericBalances = $tiers->filter(function($tier) {
+            return is_numeric($tier->wallet_balance);
+        })->pluck('wallet_balance');
+
+        $maxWalletBalance = $numericBalances->max() ?: 0;
 
         $stats = [
             'total_tiers' => $totalTiers,
@@ -962,6 +976,7 @@ class AdminController extends Controller
 
         return view('dashboard.transactions.tier-settings', compact('tiers', 'stats'));
     }
+
 
 
 
