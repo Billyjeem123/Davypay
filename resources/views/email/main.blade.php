@@ -61,30 +61,27 @@
             max-width: 600px;
             margin: 0 auto;
             background-color: #ffffff;
-            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.1);
         }
 
         /* Header styles */
         .header {
-            background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
+            background: white;
             padding: 30px 20px;
             text-align: center;
-            border-bottom: 3px solid #dc2626;
         }
 
         .logo {
             font-size: 32px;
             font-weight: bold;
-            color: #dc2626;
+            color: black;
             text-decoration: none;
             letter-spacing: -1px;
         }
 
         .tagline {
-            color: #374151;
+            color: black;
             font-size: 14px;
             margin-top: 8px;
-            font-weight: 500;
         }
 
         /* Content styles */
@@ -97,7 +94,7 @@
             font-weight: 600;
             color: #1a202c;
             margin-bottom: 20px;
-            line-height: 1.3;
+            line-height: 1.3;;
             text-align: center;
             display: block;
         }
@@ -110,24 +107,23 @@
         }
 
         .highlight-box {
-            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-            border-left: 4px solid #dc2626;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-left: 4px solid #667eea;
             padding: 20px;
             margin: 30px 0;
             border-radius: 0 8px 8px 0;
-            box-shadow: 0 2px 10px rgba(220, 38, 38, 0.1);
         }
 
         .highlight-title {
             font-size: 18px;
             font-weight: 600;
-            color: #dc2626;
+            color: #2d3748;
             margin-bottom: 10px;
         }
 
         .highlight-text {
             font-size: 16px;
-            color: #374151;
+            color: #4a5568;
             line-height: 1.5;
         }
 
@@ -139,21 +135,20 @@
 
         .cta-button {
             display: inline-block;
-            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #ffffff;
             padding: 16px 32px;
             text-decoration: none;
             border-radius: 50px;
             font-weight: 600;
             font-size: 16px;
-            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
             transition: all 0.3s ease;
         }
 
         .cta-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
-            background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
         /* Stats/metrics section */
@@ -161,9 +156,6 @@
             display: table;
             width: 100%;
             margin: 30px 0;
-            background: linear-gradient(135deg, #fefefe 0%, #f9fafb 100%);
-            border-radius: 12px;
-            padding: 20px 0;
         }
 
         .stat-item {
@@ -177,7 +169,7 @@
         .stat-number {
             font-size: 28px;
             font-weight: bold;
-            color: #dc2626;
+            color: #667eea;
             line-height: 1;
         }
 
@@ -187,25 +179,9 @@
             margin-top: 5px;
         }
 
-        /* Security badge */
-        .security-badge {
-            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-            border: 1px solid #fecaca;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 25px 0;
-            text-align: center;
-        }
-
-        .security-text {
-            font-size: 14px;
-            color: #dc2626;
-            font-weight: 600;
-        }
-
         /* Footer styles */
         .footer {
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            background-color: #f7fafc;
             padding: 30px 20px;
             text-align: center;
             border-top: 1px solid #e2e8f0;
@@ -225,17 +201,17 @@
         .social-link {
             display: inline-block;
             margin: 0 10px;
-            color: #dc2626;
+            color: #667eea;
             text-decoration: none;
             font-size: 14px;
             padding: 8px 12px;
-            border: 1px solid #fecaca;
+            border: 1px solid #e2e8f0;
             border-radius: 20px;
             transition: all 0.3s ease;
         }
 
         .social-link:hover {
-            background-color: #dc2626;
+            background-color: #667eea;
             color: #ffffff;
         }
 
@@ -246,7 +222,7 @@
         }
 
         .unsubscribe a {
-            color: #dc2626;
+            color: #667eea;
             text-decoration: none;
         }
 
@@ -313,20 +289,11 @@
             }
 
             .highlight-title {
-                color: #f87171 !important;
+                color: #f7fafc !important;
             }
 
             .highlight-text {
                 color: #cbd5e0 !important;
-            }
-
-            .security-badge {
-                background: linear-gradient(135deg, #2d3748 0%, #374151 100%) !important;
-                border-color: #4b5563 !important;
-            }
-
-            .security-text {
-                color: #f87171 !important;
             }
         }
     </style>
@@ -334,7 +301,7 @@
 
 <body>
 <div style="display: none; font-size: 1px; color: #fefefe; line-height: 1px; font-family: 'Segoe UI', sans-serif; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
-    Your financial journey just got easier with DAVYPAY - Secure, Smart, Simple
+    {{--    #Your financial journey just got easier with {{ config('app.name') }} - Secure, Smart, Simple--}}
 </div>
 
 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -346,8 +313,7 @@
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                         <td class="header">
-                            <a href="#" class="logo">DAVYPAY</a>
-                            <div class="tagline">Your Smart Financial Companion</div>
+                            <a href="#" class="logo">{{ config('app.name') }}</a>
                         </td>
                     </tr>
                 </table>
@@ -361,31 +327,23 @@
                 <!-- Footer -->
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
-                        <td class="footer">
+                        <td class="footer" style="text-align: center; padding: 25px 20px; background-color: #f7fafc; border-top: 1px solid #e2e8f0;">
 
-                            <div class="footer-text">
-                                <strong>DAVYPAY</strong><br>
+                            <div class="footer-text" style="font-size: 14px; color: #718096; line-height: 1.6;">
+                                <strong>{{ config('app.name') }}</strong><br>
                                 Making finance simple, secure, and accessible for everyone.
                             </div>
 
-                            <div class="social-links">
-                                <a href="#" class="social-link">Help Center</a>
-                                <a href="#" class="social-link">Twitter</a>
-                                <a href="#" class="social-link">LinkedIn</a>
-                            </div>
-
-                            <div class="footer-text" style="margin-top: 20px;">
-                                © 2025 DAVYPAY. All rights reserved.<br>
-                                123 Fintech Street, Digital City, DC 12345
-                            </div>
-
-                            <div class="unsubscribe">
-                                <a href="#">Unsubscribe</a> | <a href="#">Privacy Policy</a> | <a href="#">Terms of Service</a>
+                            <div class="footer-text" style="margin-top: 15px; font-size: 13px; color: #a0aec0;">
+                                © {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
                             </div>
 
                         </td>
                     </tr>
                 </table>
+
+
+
 
             </div>
         </td>

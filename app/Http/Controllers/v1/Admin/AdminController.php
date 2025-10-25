@@ -21,6 +21,8 @@ use App\Models\TransactionLog;
 use App\Models\User;
 use App\Models\UserActivityLog;
 use App\Models\Wallet;
+use App\Notifications\AccountBannedNotification;
+use App\Notifications\AccountRestrictedNotification;
 use App\Services\VirtualAccountManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -267,6 +269,7 @@ class AdminController extends Controller
         $metrics = UserActivityLog::metrics();
         $stats = $this->buildActivityStats($metrics);
         $users = $this->getLatestUsers();
+
 
         return view('dashboard.user.activity-logs', [
             ...$metrics,
@@ -764,6 +767,8 @@ class AdminController extends Controller
             ]);
         }
 
+        $user->notify(new AccountRestrictedNotification($user));
+
         return back()->with('success', 'User restriction status updated successfully.');
     }
 
@@ -780,6 +785,8 @@ class AdminController extends Controller
                     'status' => $user->is_ban ? 'locked' : 'active'
                 ]);
             }
+
+            $user->notify(new AccountBannedNotification($user));
 
             return back()->with('success', 'User ban status updated successfully.');
         }
@@ -887,7 +894,9 @@ class AdminController extends Controller
             ],
             [
                 'label' => 'Top Page Visited',
-                'value' => $metrics['topPage'] ?? 'N/A',
+                'value' => ($metrics['topPage'] ?? null)
+                    ? basename(parse_url($metrics['topPage'], PHP_URL_PATH)) . ' page'
+                    : 'N/A',
                 'change' => 'Most viewed',
                 'icon' => 'uil-file-alt',
                 'color' => 'info',

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AdminWalletRequest;
 use App\Models\TransactionLog;
 use App\Models\User;
+use App\Notifications\AdminWalletFundedNotification;
 use App\Services\ActivityTracker;
 use App\Services\FraudDetectionService;
 use GuzzleHttp\Exception\TransferException;
@@ -43,12 +44,6 @@ class AdminWalletTransactionController extends Controller
             }
 
             $reference = Utility::txRef("in-app", "paystack");
-
-            # Step 2: Perform fraud checks
-            if($validated['transaction_type'] === "debit"){
-                $this->performFraudChecks($user, $validated['amount']);
-            }
-
 
             $this->checkTransactionLimits($user, $validated['amount']);
 
@@ -86,6 +81,15 @@ class AdminWalletTransactionController extends Controller
 
 
             $this->tracker->track($type, $defaultDescription, $baseTrackingData);
+
+            # Step 7: Notify user
+            $user->notify(new AdminWalletFundedNotification(
+                $user,
+                $amount,
+                $transaction_type,
+                $reference,
+                $validated['description']
+            ));
 
             DB::commit();
 
