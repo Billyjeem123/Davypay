@@ -267,14 +267,14 @@ class UserService
 
 
 //        # Check device restrictions if device_id is provided
-//        if (isset($credentials['device_id'])) {
-//            $deviceCheckResult = $this->checkDeviceAuthorization($user, $credentials);
-//
-//            # If device check failed, return the error response
-//            if ($deviceCheckResult !== true) {
-//                return $deviceCheckResult;
-//            }
-//        }
+        if (isset($credentials['device_id'])) {
+            $deviceCheckResult = $this->checkDeviceAuthorization($user, $credentials);
+
+            # If device check failed, return the error response
+            if ($deviceCheckResult !== true) {
+                return $deviceCheckResult;
+            }
+        }
 
 
         return [
