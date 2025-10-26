@@ -65,33 +65,7 @@
                     </form>
                 </div>
             </li>
-            <li class="dropdown">
-                <a class="nav-link dropdown-toggle arrow-none" data-bs-toggle="dropdown" href="#" role="button"
-                   aria-haspopup="false" aria-expanded="false">
-                    <i class="ri-question-answer-fill font-22"></i>
-                    &nbsp;
-                    <span> Feedback? </span>
-                </a>
-                <div class="dropdown-menu dropdown-menu-end dropdown-menu-animated dropdown-lg py-0">
-                    <div class="p-2 border-top-0 border-start-0 border-end-0 border-dashed border">
-                        <div class="row align-items-center">
-                            <div class="col">
-                                <h6 class="m-0 font-16 fw-semibold"> Give Feedback</h6>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="px-2" style="max-height: 300px;" data-simplebar>
-                        <form action="" class="mt-2">
-                            <div class="mb-2">
-                                        <textarea class="form-control" id="feedback" rows="5"
-                                                  placeholder="Lorem lipsum....."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <button class="btn btn-primary w-100">Submit</button>
-                            </div>
-                        </form>
-                    </div>
-            </li>
+
 
 
             <li class="d-none d-sm-inline-block position-relative">

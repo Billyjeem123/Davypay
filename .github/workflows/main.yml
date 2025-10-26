@@ -27,7 +27,7 @@ jobs:
           elif [ "${{ github.ref_name }}" == "dev" ]; then
             echo "DEPLOY_HOST=${{ secrets.SSH_HOST }}" >> $GITHUB_ENV
             echo "DEPLOY_USER=${{ secrets.SSH_USER }}" >> $GITHUB_ENV
-            echo "DEPLOY_PATH=/home/wwwdavyp/prod.davypay.com" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=/home/wwwdavyp/api.davypay.com" >> $GITHUB_ENV
           else
             echo "❌ Unknown branch. Skipping deployment."
             exit 1
